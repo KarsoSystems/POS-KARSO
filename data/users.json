@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "users": [
+    {
+      "nombre": "Sebastian",
+      "apellidoPaterno": "Moreno",
+      "apellidoMaterno": "Perez",
+      "whatsapp": "+525588099786",
+      "correo": "jondoe@gmail.com",
+      "passwordHash": null,
+      "providers": [
+        "google"
+      ],
+      "whatsappVerificado": true,
+      "correoVerificado": true,
+      "estado": "activo",
+      "id": "e4a78890-01f2-462e-9994-1e167587bb3a",
+      "idCliente": "CLI-000001",
+      "createdAt": "2026-10-30T22:34:46.264Z",
+      "updatedAt": "2026-10-30T22:35:10.289Z"
+    },
+    {
+      "nombre": "Sebastian",
+      "apellidoPaterno": "Moreno",
+      "apellidoMaterno": "Perez",
+      "whatsapp": "+525588099786",
+      "correo": "lazulibeach@gmail.com",
+      "passwordHash": null,
+      "providers": [
+        "google"
+      ],
+      "whatsappVerificado": true,
+      "correoVerificado": true,
+      "estado": "activo",
+      "id": "fe6ba80d-7a98-4a32-9937-6157ca522591",
+      "idCliente": "CLI-000002",
+      "createdAt": "2026-10-30T22:36:44.581Z",
+      "updatedAt": "2026-10-30T22:36:55.639Z"
+    }
+  ]
+}
