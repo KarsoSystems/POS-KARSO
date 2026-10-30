@@ -1,0 +1,15 @@
+[package]
+name = "cliente-webside-desktop"
+version = "0.1.0"
+description = "Shell de escritorio del portal de clientes (carga la app web desde una URL)"
+edition = "2021"
+
+[lib]
+name = "cliente_webside_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

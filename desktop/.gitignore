@@ -1,0 +1,4 @@
+# dependencias y artefactos de Tauri
+/node_modules/
+/src-tauri/target/
+/src-tauri/gen/
