@@ -1,6 +1,6 @@
 # SPEC 01 — Base del proyecto y autenticación (demo)
 
-> **Estado:** Borrador
+> **Estado:** Approved
 > **Depende de:** —
 > **Fecha:** 2026-10-30
 > **Objetivo:** Montar la base Next.js del portal de clientes de la imprenta con registro, login (correo o Google simulado), verificación de WhatsApp simulada y un panel protegido, persistiendo en JSON y embebible en un shell Tauri.
