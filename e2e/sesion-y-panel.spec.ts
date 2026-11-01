@@ -65,15 +65,20 @@ test.describe("Sesión", () => {
 });
 
 test.describe("Panel", () => {
-  test("Mis pedidos y Mi perfil aparecen deshabilitados con 'Próximamente'", async ({ page }) => {
+  test("Mis pedidos está habilitado y Mi perfil aparece con 'Próximamente'", async ({ page }) => {
     await crearCuentaActiva(page.request);
     await page.goto("/panel");
     const menu = page.locator("aside").getByRole("navigation", { name: "Menú del panel" });
-    for (const nombre of ["Mis pedidos", "Mi perfil"]) {
-      const item = menu.getByRole("link", { name: new RegExp(nombre) });
-      await expect(item).toHaveAttribute("aria-disabled", "true");
-      await expect(item).toContainText("Próximamente");
-    }
+
+    const perfil = menu.getByRole("link", { name: /Mi perfil/ });
+    await expect(perfil).toHaveAttribute("aria-disabled", "true");
+    await expect(perfil).toContainText("Próximamente");
+
+    const pedidos = menu.getByRole("link", { name: "Mis pedidos" });
+    await expect(pedidos).not.toHaveAttribute("aria-disabled");
+    await pedidos.click();
+    await expect(page).toHaveURL(/\/panel\/pedidos$/);
+    await expect(pedidos).toHaveAttribute("aria-current", "page");
   });
 });
 

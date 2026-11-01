@@ -49,6 +49,15 @@ describe("apiFetch", () => {
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "GET", headers: undefined, body: undefined });
   });
 
+  it("FormData se manda tal cual, sin content-type manual (el navegador pone el boundary)", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, {}));
+    const form = new FormData();
+    form.append("archivo", new File(["x"], "a.jpg"));
+    await apiFetch("/api/x", { method: "POST", body: form });
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "POST", headers: undefined });
+    expect(fetchMock.mock.calls[0][1].body).toBe(form);
+  });
+
   it("convierte { error } en ApiError tipado", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(409, {

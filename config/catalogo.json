@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "ejemplo": true,
+  "margenCm": 0.5,
+  "separacionCm": 0.3,
+  "tasaIva": 0.16,
+  "hojas": [
+    { "id": "tabloide", "nombre": "Tabloide", "anchoCm": 27.9, "altoCm": 43.2 },
+    { "id": "mesa", "nombre": "Mesa", "anchoCm": 33, "altoCm": 48.3 }
+  ],
+  "papeles": [
+    {
+      "id": "bond-90",
+      "nombre": "Bond 90 g",
+      "precioHojaCentavos": { "tabloide": 300, "mesa": 400 }
+    },
+    {
+      "id": "couche-150",
+      "nombre": "Couché 150 g",
+      "precioHojaCentavos": { "tabloide": 500, "mesa": 650 }
+    },
+    {
+      "id": "couche-300",
+      "nombre": "Couché 300 g",
+      "precioHojaCentavos": { "tabloide": 800, "mesa": 1000 }
+    }
+  ],
+  "productos": [
+    {
+      "id": "volante",
+      "nombre": "Volante",
+      "tamanos": [
+        { "id": "cuarto-carta", "nombre": "Cuarto de carta", "anchoCm": 10.8, "altoCm": 14 },
+        { "id": "media-carta", "nombre": "Media carta", "anchoCm": 14, "altoCm": 21.6 },
+        { "id": "carta", "nombre": "Carta", "anchoCm": 21.6, "altoCm": 27.9 }
+      ],
+      "papelesIds": ["bond-90", "couche-150"]
+    },
+    {
+      "id": "cartel",
+      "nombre": "Cartel",
+      "tamanos": [{ "id": "tabloide", "nombre": "Tabloide", "anchoCm": 27.9, "altoCm": 43.2 }],
+      "papelesIds": ["couche-150", "couche-300"]
+    },
+    {
+      "id": "tarjeta",
+      "nombre": "Tarjeta",
+      "tamanos": [{ "id": "estandar", "nombre": "Estándar", "anchoCm": 9, "altoCm": 5 }],
+      "papelesIds": ["couche-300"]
+    }
+  ]
+}

@@ -1,10 +1,9 @@
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
+import { CATALOGO_ORIGINAL, CATALOGO_PATH, DATA_DIR, E2E_DIR, UPLOADS_DIR } from "./e2e/rutas";
 
 const PORT = 3100;
-// Datos del e2e en una carpeta temporal; se borra cada vez que arranca el servidor.
-const DATA_DIR = path.join(tmpdir(), "cliente-webside-e2e");
+// Datos, archivos subidos y catálogo del e2e en una carpeta temporal; se
+// recrea cada vez que arranca el servidor.
 
 export default defineConfig({
   testDir: "./e2e",
@@ -23,7 +22,7 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `rm -rf "${DATA_DIR}" && pnpm dev --port ${PORT}`,
+    command: `rm -rf "${E2E_DIR}" && mkdir -p "${E2E_DIR}" && cp "${CATALOGO_ORIGINAL}" "${CATALOGO_PATH}" && pnpm dev --port ${PORT}`,
     url: `http://localhost:${PORT}/login`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
@@ -31,6 +30,8 @@ export default defineConfig({
       // Secreto solo para e2e; no depende del .env.local del desarrollador.
       AUTH_SECRET: "e2e-secret-solo-para-pruebas-0123456789",
       DATA_DIR,
+      UPLOADS_DIR,
+      CATALOGO_PATH,
     },
   },
 });

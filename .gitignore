@@ -99,6 +99,9 @@ yarn-error.log*
 # demo data (SPEC 01)
 /data/
 
+# archivos subidos por los clientes en el demo (SPEC 02)
+/uploads/
+
 # vercel
 .vercel
 

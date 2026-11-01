@@ -1,17 +1,13 @@
 "use client";
 
-import { Package, UserRound } from "lucide-react";
+import { ChevronRight, Package, UserRound } from "lucide-react";
+import Link from "next/link";
 import { usePanelUser } from "@/components/panel/panel-user";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const PROXIMAMENTE = [
-  {
-    icon: Package,
-    titulo: "Mis pedidos",
-    texto: "Sube tus archivos, elige tamaño y cantidad, y recibe tu presupuesto.",
-  },
   {
     icon: UserRound,
     titulo: "Mi perfil",
@@ -42,6 +38,23 @@ export function PanelInicio() {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2">
+        <Link
+          href="/panel/pedidos"
+          className="group rounded-xl focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        >
+          <Card className="h-full transition-colors group-hover:border-foreground/20 group-hover:bg-accent/40">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Package className="size-4" aria-hidden />
+                  Mis pedidos
+                </CardTitle>
+                <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+              </div>
+              <CardDescription>Sube tus archivos, elige tamaño y cantidad, y recibe tu presupuesto.</CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
         {PROXIMAMENTE.map(({ icon: Icon, titulo, texto }) => (
           <Card key={titulo} className="opacity-80">
             <CardHeader>

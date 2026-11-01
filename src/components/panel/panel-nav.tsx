@@ -13,15 +13,19 @@ interface NavItem {
   proximamente?: boolean;
 }
 
-// "Mis pedidos" llega en el SPEC 03 y "Mi perfil" en el SPEC 02.
+// "Mi perfil" llega en un spec futuro.
 const ITEMS: NavItem[] = [
   { label: "Inicio", href: "/panel", icon: Home },
-  { label: "Mis pedidos", href: "/panel/pedidos", icon: Package, proximamente: true },
+  { label: "Mis pedidos", href: "/panel/pedidos", icon: Package },
   { label: "Mi perfil", href: "/panel/perfil", icon: UserRound, proximamente: true },
 ];
 
 const itemClass =
   "flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors";
+
+/** Inicio solo en su ruta exacta; las demás secciones también en sus subrutas. */
+const esActivo = (pathname: string, href: string) =>
+  href === "/panel" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 
 export function PanelNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -47,10 +51,10 @@ export function PanelNav({ onNavigate }: { onNavigate?: () => void }) {
             key={href}
             href={href}
             onClick={onNavigate}
-            aria-current={pathname === href ? "page" : undefined}
+            aria-current={esActivo(pathname, href) ? "page" : undefined}
             className={cn(
               itemClass,
-              pathname === href
+              esActivo(pathname, href)
                 ? "bg-accent text-accent-foreground"
                 : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
             )}
