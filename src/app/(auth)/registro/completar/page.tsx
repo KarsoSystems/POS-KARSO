@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { CompletarPerfilForm } from "@/components/auth/completar-perfil-form";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CompletarPerfilForm } from "@/components/organisms/completar-perfil-form";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/atoms/card";
 
 export const metadata: Metadata = { title: "Completa tu perfil" };
 

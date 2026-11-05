@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { LoginForm } from "@/components/auth/login-form";
-import { AuthDivider, GoogleMockDialog } from "@/components/auth/google-mock-dialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LoginForm } from "@/components/organisms/login-form";
+import { AuthDivider, GoogleMockDialog } from "@/components/organisms/google-mock-dialog";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/atoms/card";
 
 export const metadata: Metadata = { title: "Iniciar sesión" };
 

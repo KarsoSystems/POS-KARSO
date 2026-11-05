@@ -20,15 +20,6 @@ build/
 dist/
 *.tsbuildinfo
 
-# Tauri (desktop)
-desktop/src-tauri/target/
-desktop/src-tauri/gen/schemas/
-desktop/node_modules/
-
-# Rust
-target/
-**/*.rs.bk
-
 # Tests
 test-results/
 playwright-report/

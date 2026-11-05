@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { MisPedidos } from "@/components/pedidos/mis-pedidos";
+import { MisPedidos } from "@/components/organisms/mis-pedidos";
 
 export const metadata: Metadata = { title: "Mis pedidos" };
 

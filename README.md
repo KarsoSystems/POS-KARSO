@@ -8,6 +8,7 @@ El trabajo se define con specs en [`specs/`](specs/). Lo implementado hoy:
 
 - [SPEC 01](specs/01-base-y-autenticacion-demo.md): registro, login (correo o Google simulado), verificación de WhatsApp simulada y el esqueleto del panel.
 - [SPEC 02](specs/02-pedidos-subpedidos-y-presupuesto.md): pedidos con subpedidos (ítems), subida de archivos, presupuesto por hoja de impresión con IVA, vista previa a escala del acomodo, confirmación con folio y "Mis pedidos". Sin pago todavía.
+- [SPEC 03](specs/03-convenio-tecnico-y-de-diseno.md): refactor según el convenio técnico y de diseño (atomic design, React Query con hooks, identidad gráfica en tema oscuro y claro). App 100% web.
 
 ## Arrancar el demo
 
@@ -117,7 +118,7 @@ Los datos viven en `data/` y los archivos subidos en `uploads/`. Git ignora las 
 | `pnpm dev` | Servidor de desarrollo en el puerto 3000. |
 | `pnpm build` / `pnpm start` | Build y servidor de producción. |
 | `pnpm lint` | ESLint. |
-| `pnpm test` | Tests de unidad y de route handlers (Vitest). |
+| `pnpm test` | Tests de unidad, de route handlers y de hooks (Vitest). |
 | `pnpm test:e2e` | Tests end-to-end (Playwright). Levantan su propio servidor en el puerto 3100 con datos temporales. La primera vez: `pnpm exec playwright install chromium`. |
 
 ## Estructura
@@ -125,29 +126,58 @@ Los datos viven en `data/` y los archivos subidos en `uploads/`. Git ignora las 
 ```
 src/
 ├── app/                 # páginas (/panel/pedidos/*) y route handlers (/api/auth, /api/archivos, /api/pedidos, /api/catalogo)
-├── components/          # UI (shadcn/ui en components/ui; pedidos en components/pedidos)
+├── components/          # UI con atomic design (ver abajo)
+│   ├── atoms/           #   piezas indivisibles: shadcn/ui y átomos propios
+│   ├── molecules/       #   combinan átomos con una sola responsabilidad
+│   ├── organisms/       #   secciones con datos (usan hooks) o formularios completos
+│   └── templates/       #   esqueletos de página: panel y acceso
+├── hooks/               # React Query y lógica de UI: use-auth, use-pedidos, use-catalogo, use-subir-archivo, …
 ├── lib/                 # compartido con el front: cliente HTTP, validación (zod), catálogo,
 │   └── pedidos/         #   acomodo, presupuesto y vista previa (puros: los usan front y servidor)
 ├── server/              # solo servidor: dominio, sesión, repositorios, almacén JSON y de archivos
 └── middleware.ts        # redirecciones según el estado de la cuenta
 config/catalogo.json     # hojas, papeles, precios y productos
+docs/identidad/          # maqueta del socio, fuente de la identidad gráfica
 e2e/                     # tests de Playwright (fixtures en e2e/fixtures)
-desktop/                 # shell de escritorio con Tauri 2 (ver desktop/README.md)
 specs/                   # specs del proyecto
 ```
 
-Regla del proyecto: **los componentes no importan nada de `src/server`**. El front solo habla con el backend a través de `src/lib/api-client.ts`. Así, pasar del demo al backend real no toca la UI.
+Reglas del proyecto (las hace cumplir `pnpm lint`):
 
-## App de escritorio
+- **Los componentes no importan nada de `src/server`.** El front solo habla con el backend a través de `src/lib/api-client.ts`. Así, pasar del demo al backend real no toca la UI.
+- **Los datos se piden con hooks de `src/hooks/`** (TanStack React Query). Componentes y páginas no llaman a `authApi` ni a `pedidosApi`; solo importan sus tipos.
+- **Cada nivel de atomic design importa solo de los de abajo:** `atoms` ← `molecules` ← `organisms` ← `templates` ← páginas de `src/app`. Solo `organisms/` y `templates/` usan hooks de datos.
+- `pnpm dlx shadcn add <componente>` crea los componentes nuevos en `atoms/` (alias `ui` de `components.json`).
 
-`desktop/` contiene un shell de Tauri 2 que abre esta app en una ventana nativa. Los prerrequisitos y el uso están en [`desktop/README.md`](desktop/README.md).
+En desarrollo, el botón flotante de React Query Devtools muestra la caché. No se incluye en el build de producción.
+
+## Convenio técnico y de diseño
+
+Acordado con el socio y aplicado en el [SPEC 03](specs/03-convenio-tecnico-y-de-diseno.md):
+
+| Punto del convenio | Estado | Dónde |
+| --- | --- | --- |
+| Peticiones HTTP centralizadas en un solo cliente | ✅ | `src/lib/api-client.ts`, `auth-api.ts` y `pedidos-api.ts` |
+| Peticiones HTTP con TanStack React Query | ✅ | `src/app/providers.tsx` y `src/hooks/` |
+| Lógica en hooks propios | ✅ | `src/hooks/` (`use-editor-item`, `use-cuenta-regresiva`, …) |
+| Atomic design | ✅ | `src/components/{atoms,molecules,organisms,templates}` y reglas de ESLint |
+| Identidad gráfica (colores, espacios, tipografía) | ✅ | Tokens en `src/app/globals.css` y Montserrat. Fuente: `docs/identidad/maqueta-crear-pedido.png` |
+| App 100% web | ✅ | Se retiró la app de escritorio (`desktop/`) |
+| Build ofuscado y sin source maps | ⛔ descartado | Decisión del 2026-11-02. Next no publica source maps del navegador en producción por defecto. |
+
+## Temas
+
+La app tiene tema **oscuro** (por defecto, el de la maqueta) y **claro** (derivado). El selector está al pie de la barra lateral del panel y en la esquina de las pantallas de acceso. La elección se guarda en `localStorage`, en la clave `tema` (`"dark"` o `"light"`), y se aplica antes de pintar, sin parpadeo. No sigue la preferencia del sistema operativo.
+
+Los colores viven en tokens de `src/app/globals.css`: `:root` es el claro y `.dark` el oscuro. Cambiar un color ahí no toca componentes. Además de los de shadcn hay tres propios: `--exito` (verde), `--acento-texto` (montos y nombre del cliente) y `--fondo-degradado` (clase `bg-fondo-degradado`).
 
 ## Specs
 
 | Spec | Contenido | Estado |
 | --- | --- | --- |
-| [01](specs/01-base-y-autenticacion-demo.md) | Base del proyecto, registro, login, Google simulado, verificación de WhatsApp, esqueleto del panel, shell Tauri | En verificación |
+| [01](specs/01-base-y-autenticacion-demo.md) | Base del proyecto, registro, login, Google simulado, verificación de WhatsApp, esqueleto del panel (shell Tauri retirado en SPEC 03) | En verificación |
 | [02](specs/02-pedidos-subpedidos-y-presupuesto.md) | Pedidos y subpedidos, subida de archivos, catálogo, presupuesto por hoja con IVA, vista previa simple, confirmación con folio, Mis pedidos | En verificación |
+| [03](specs/03-convenio-tecnico-y-de-diseno.md) | Convenio técnico y de diseño: atomic design, React Query con hooks, identidad gráfica con tema oscuro y claro, retiro de la app de escritorio | En verificación |
 | — | Pago y envío | Pendiente |
 | — | Perfil: datos, direcciones e información de pago | Pendiente |
 | — | Acomodo avanzado / vista previa editable | Pendiente |
@@ -155,4 +185,4 @@ Regla del proyecto: **los componentes no importan nada de `src/server`**. El fro
 
 La hoja de ruta se reordenó en el SPEC 02 (pedidos antes que perfil). Los números de los specs futuros se asignan al crearlos.
 
-Fuera del demo por ahora: recuperar contraseña, verificación de correo, envío real de códigos, OAuth real de Google, backend real (MongoDB + S3), miniaturas de PDF/AI/PSD, limpieza de archivos huérfanos, notificaciones, factura (CFDI) e instaladores de escritorio.
+Fuera del demo por ahora: recuperar contraseña, verificación de correo, envío real de códigos, OAuth real de Google, backend real (MongoDB + S3), miniaturas de PDF/AI/PSD, limpieza de archivos huérfanos, notificaciones y factura (CFDI). La app es 100% web: no hay versión de escritorio.

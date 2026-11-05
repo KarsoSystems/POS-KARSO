@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { VerificarWhatsappForm } from "@/components/auth/verificar-whatsapp-form";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { VerificarWhatsappForm } from "@/components/organisms/verificar-whatsapp-form";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/atoms/card";
 
 export const metadata: Metadata = { title: "Verifica tu WhatsApp" };
 

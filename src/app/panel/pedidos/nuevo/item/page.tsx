@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { EditorItem } from "@/components/pedidos/editor-item";
+import { EditorItem } from "@/components/organisms/editor-item";
 
 export const metadata: Metadata = { title: "Agregar ítem" };
 

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { BorradorPedido } from "@/components/pedidos/borrador-pedido";
+import { BorradorPedido } from "@/components/organisms/borrador-pedido";
 
 export const metadata: Metadata = { title: "Nuevo pedido" };
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { RegistroForm } from "@/components/auth/registro-form";
-import { AuthDivider, GoogleMockDialog } from "@/components/auth/google-mock-dialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RegistroForm } from "@/components/organisms/registro-form";
+import { AuthDivider, GoogleMockDialog } from "@/components/organisms/google-mock-dialog";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/atoms/card";
 
 export const metadata: Metadata = { title: "Crear cuenta" };
 

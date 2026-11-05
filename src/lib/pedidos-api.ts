@@ -19,8 +19,8 @@ export interface PedidoResponse {
   archivos: Record<string, PublicArchivo>;
 }
 
-/** URL para ver o descargar un archivo propio (src de <img> o enlace). */
-export const urlArchivo = (id: string) => `${apiBaseUrl()}/api/archivos/${encodeURIComponent(id)}`;
+// Vive en archivos.ts (solo arma una URL, no hace peticiones); se reexporta para no romper imports.
+export { urlArchivo } from "@/lib/archivos";
 
 const subidaCancelada = () => new ApiError(0, "CANCELADO", "Subida cancelada");
 

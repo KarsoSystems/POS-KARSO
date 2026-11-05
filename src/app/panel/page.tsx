@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { PanelInicio } from "@/components/panel/panel-inicio";
+import { PanelInicio } from "@/components/organisms/panel-inicio";
 
 export const metadata: Metadata = { title: "Inicio" };
 

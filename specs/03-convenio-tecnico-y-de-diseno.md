@@ -215,7 +215,7 @@ Efecto de cada mutación en la caché:
 
 ## Criterios de aceptación
 
-- [ ] La carpeta `desktop/` no existe y ni el README ni `eslint.config.mjs` mencionan Tauri (los SPEC 01 y 02 sí, como historia).
+- [ ] La carpeta `desktop/` no existe. `eslint.config.mjs` y `.gitignore` no mencionan Tauri, y el README solo lo menciona en la nota "shell Tauri retirado en SPEC 03" (los SPEC 01 y 02 sí, como historia).
 - [ ] `docs/identidad/maqueta-crear-pedido.png` existe.
 - [ ] `src/components/` contiene solo `atoms/`, `molecules/`, `organisms/` y `templates/`.
 - [ ] `components.json` tiene `"ui": "@/components/atoms"`.
@@ -224,7 +224,7 @@ Efecto de cada mutación en la caché:
 - [ ] `grep -rn "useEffect" src/components` no muestra ninguna petición al API.
 - [ ] `@tanstack/react-query` y `next-themes` están en `dependencies` con versión exacta. `@tanstack/react-query-devtools` no aparece en el bundle de `pnpm build` (su botón no se ve con `pnpm start`).
 - [ ] Con `pnpm dev`, el botón de React Query Devtools aparece en pantalla.
-- [ ] Al agregar un ítem al borrador, la red muestra un solo `POST /api/pedidos/borrador/items` y ningún `GET /api/pedidos/borrador` adicional.
+- [ ] Al agregar un ítem al borrador, la mutación hace un solo `POST /api/pedidos/borrador/items` y no pide el borrador por su cuenta. El único `GET /api/pedidos/borrador` posterior es el que hace la pantalla del borrador al montarse (`staleTime: 0`, como antes del refactor).
 - [ ] Después de "Hacer pedido", "Mis pedidos" muestra el folio nuevo sin recargar la página.
 - [ ] Después de "Cerrar sesión" e iniciar sesión con otra cuenta, no se ven pedidos de la cuenta anterior.
 - [ ] `pnpm lint`, `pnpm test` (incluido `src/hooks/use-pedidos.test.tsx`) y `pnpm test:e2e` pasan.
@@ -252,6 +252,7 @@ Efecto de cada mutación en la caché:
 - **Sí:** React Query para todas las peticiones, autenticación incluida, con hooks en `src/hooks/`. Devtools solo en desarrollo.
 - **Sí:** `retry: false`, `refetchOnWindowFocus: false` y `staleTime: 0`. Mantienen el comportamiento actual y la regla del SPEC 02 de que el catálogo se lee fresco.
 - **Sí:** las mutaciones escriben su respuesta en la caché (`setQueryData`) en vez de volver a pedir. Así se evita una petición extra en cada cambio del borrador.
+- **Sí:** el borrador también usa `staleTime: 0`, aunque la pantalla del borrador vuelva a pedirlo al montarse tras guardar un ítem. Así, tras un cambio de catálogo, siempre se ve recalculado (SPEC 02). **No:** `staleTime: Infinity` o un valor corto solo para el borrador. Decisión tomada durante la implementación (paso 10).
 - **Sí:** la subida de archivos sigue con `XMLHttpRequest` dentro de una mutación, porque `fetch` no reporta el avance de subida.
 - **⛔ Descartado:** ofuscar el código y borrar o verificar los source maps del build. Decisión del 2026-11-02. Next ya no publica source maps del navegador en producción por defecto.
 - **⛔ Descartado:** app de escritorio. La app será 100% web; se retira `desktop/`.
