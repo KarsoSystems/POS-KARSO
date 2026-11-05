@@ -1,7 +1,7 @@
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createJsonStore, resolveDataDir } from "./json-store";
 
 interface CounterFile {
@@ -92,6 +92,16 @@ describe("createJsonStore", () => {
     await writeFile(path.join(dir, "counter.json"), JSON.stringify({ version: 2, count: 0 }));
     const store = createJsonStore("counter.json", initial, dir);
     await expect(store.read()).rejects.toThrow("counter.json: versión 2 no soportada");
+  });
+
+  it("con versionDistinta 'descartar' reinicia el archivo y avisa en el log", async () => {
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await writeFile(path.join(dir, "counter.json"), JSON.stringify({ version: 2, count: 7 }));
+    const store = createJsonStore("counter.json", initial, dir, { versionDistinta: "descartar" });
+    expect(await store.read()).toEqual(initial);
+    expect(await readJson("counter.json")).toEqual(initial);
+    expect(aviso).toHaveBeenCalledWith(expect.stringMatching(/counter\.json: versión 2 descartada/));
+    aviso.mockRestore();
   });
 });
 

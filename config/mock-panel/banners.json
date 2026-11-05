@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "banners": [
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60701",
+      "titulo": "Tarjetas de presentación desde $115 el millar",
+      "imagen": "/mock/banners/tarjetas.svg",
+      "imagenMovil": "/mock/banners/tarjetas-movil.svg",
+      "liga": "/panel/pedidos/nuevo/item?producto=6720a1f0c1a2b3c4d5e60201",
+      "orden": 1,
+      "vigencia": null,
+      "activo": true,
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60702",
+      "titulo": "Lonas a la medida desde $55 el m²",
+      "imagen": "/mock/banners/lonas.svg",
+      "imagenMovil": "/mock/banners/lonas-movil.svg",
+      "liga": "/panel/pedidos/nuevo/item?producto=6720a1f0c1a2b3c4d5e60202",
+      "orden": 2,
+      "vigencia": null,
+      "activo": true,
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60703",
+      "titulo": "Buen Fin: 10% en tarjetas",
+      "imagen": "/mock/banners/buen-fin.svg",
+      "imagenMovil": "/mock/banners/buen-fin-movil.svg",
+      "liga": "/panel/pedidos/nuevo/item?producto=6720a1f0c1a2b3c4d5e60201",
+      "orden": 0,
+      "vigencia": {
+        "inicio": "2026-11-13T06:00:00Z",
+        "fin": "2026-11-17T05:59:59Z"
+      },
+      "activo": true,
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60704",
+      "titulo": "Volantes para tu negocio",
+      "imagen": "/mock/banners/volantes.svg",
+      "imagenMovil": "/mock/banners/volantes-movil.svg",
+      "liga": "/panel/pedidos/nuevo/item?producto=6720a1f0c1a2b3c4d5e60203",
+      "orden": 3,
+      "vigencia": null,
+      "activo": false,
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    }
+  ]
+}

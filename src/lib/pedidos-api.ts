@@ -1,19 +1,18 @@
 import { ApiError, apiBaseUrl, apiErrorFrom, apiFetch } from "@/lib/api-client";
-import type { Catalogo } from "@/lib/catalogo/schema";
 import {
   extensionPermitida,
   MENSAJE_ARCHIVO_GRANDE,
   MENSAJE_FORMATO_NO_PERMITIDO,
   TAMANO_MAXIMO_ARCHIVO_BYTES,
-  type ItemInput,
+  type LineaInput,
 } from "@/lib/validation/pedidos";
 // Solo tipos: se borran al compilar, no arrastran código del servidor al front.
 import type { PublicArchivo } from "@/server/domain/archivo";
-import type { EstadoPedido, Pedido, Subpedido } from "@/server/domain/pedido";
+import type { EstadoPedido, LineaPedido, Pedido } from "@/server/domain/pedido";
 
-export type { Catalogo, EstadoPedido, Pedido, PublicArchivo, Subpedido };
+export type { EstadoPedido, LineaPedido, Pedido, PublicArchivo };
 
-/** Pedido con los datos públicos de los archivos de sus ítems, por id. */
+/** Pedido con los datos públicos de los archivos de sus líneas, por id. */
 export interface PedidoResponse {
   pedido: Pedido;
   archivos: Record<string, PublicArchivo>;
@@ -89,23 +88,21 @@ export function subirArchivo(
 }
 
 export const pedidosApi = {
-  catalogo: () => apiFetch<{ catalogo: Catalogo }>("/api/catalogo"),
-
   subirArchivo,
 
   borrador: () => apiFetch<PedidoResponse>("/api/pedidos/borrador"),
 
-  agregarItem: (input: ItemInput) =>
+  agregarItem: (input: LineaInput) =>
     apiFetch<PedidoResponse>("/api/pedidos/borrador/items", { method: "POST", body: input }),
 
-  editarItem: (itemId: string, input: ItemInput) =>
-    apiFetch<PedidoResponse>(`/api/pedidos/borrador/items/${encodeURIComponent(itemId)}`, {
+  editarItem: (lineaId: string, input: LineaInput) =>
+    apiFetch<PedidoResponse>(`/api/pedidos/borrador/items/${encodeURIComponent(lineaId)}`, {
       method: "PUT",
       body: input,
     }),
 
-  quitarItem: (itemId: string) =>
-    apiFetch<PedidoResponse>(`/api/pedidos/borrador/items/${encodeURIComponent(itemId)}`, {
+  quitarItem: (lineaId: string) =>
+    apiFetch<PedidoResponse>(`/api/pedidos/borrador/items/${encodeURIComponent(lineaId)}`, {
       method: "DELETE",
     }),
 

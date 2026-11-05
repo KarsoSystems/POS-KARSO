@@ -1,11 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ItemInput } from "@/lib/validation/pedidos";
+import type { LineaInput } from "@/lib/validation/pedidos";
 import { pedidosApi, type PedidoResponse } from "@/lib/pedidos-api";
 import { queryKeys } from "./query-keys";
 
-/** Borrador del usuario (el servidor lo crea si no hay), con los archivos de sus ítems. */
+/** Borrador del usuario (el servidor lo crea si no hay), con los archivos de sus líneas. */
 export function useBorrador({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({ queryKey: queryKeys.borrador, queryFn: pedidosApi.borrador, enabled });
 }
@@ -33,17 +33,17 @@ function useMutacionBorrador<V>(mutationFn: (variables: V) => Promise<PedidoResp
 }
 
 export function useAgregarItem() {
-  return useMutacionBorrador((input: ItemInput) => pedidosApi.agregarItem(input));
+  return useMutacionBorrador((input: LineaInput) => pedidosApi.agregarItem(input));
 }
 
 export function useEditarItem() {
-  return useMutacionBorrador(({ itemId, input }: { itemId: string; input: ItemInput }) =>
-    pedidosApi.editarItem(itemId, input),
+  return useMutacionBorrador(({ lineaId, input }: { lineaId: string; input: LineaInput }) =>
+    pedidosApi.editarItem(lineaId, input),
   );
 }
 
 export function useQuitarItem() {
-  return useMutacionBorrador((itemId: string) => pedidosApi.quitarItem(itemId));
+  return useMutacionBorrador((lineaId: string) => pedidosApi.quitarItem(lineaId));
 }
 
 export function useConfirmarPedido() {

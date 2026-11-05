@@ -6,6 +6,7 @@ import { usePanelUser } from "@/components/molecules/panel-user";
 import { Badge } from "@/components/atoms/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/atoms/card";
 import { Skeleton } from "@/components/atoms/skeleton";
+import { CarruselBanners } from "@/components/organisms/carrusel-banners";
 
 const PROXIMAMENTE = [
   {
@@ -36,6 +37,8 @@ export function PanelInicio() {
           </div>
         )}
       </section>
+
+      <CarruselBanners />
 
       <section className="grid gap-4 sm:grid-cols-2">
         <Link

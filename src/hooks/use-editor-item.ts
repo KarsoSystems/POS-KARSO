@@ -3,99 +3,109 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/lib/api-client";
-import { evaluarItem, medidasDelTamano } from "@/lib/pedidos/item";
-import { cantidadSchema, itemSchema, tamanoSchema, type ItemInput } from "@/lib/validation/pedidos";
-import type { Catalogo, PublicArchivo, Subpedido } from "@/lib/pedidos-api";
-import { useCatalogo } from "./use-catalogo";
+import { elegirAtributo, eleccionesDeVariante, resolverSelectores, type Elecciones } from "@/lib/catalogo/atributos";
+import type { Producto, Variante } from "@/lib/catalogo/schema";
+import { formatearM } from "@/lib/pedidos/formato";
+import { especificacionesDe, evaluarLinea } from "@/lib/pedidos/linea";
+import { cantidadSchema, lineaSchema, type LineaInput } from "@/lib/validation/pedidos";
+import type { LineaPedido, PublicArchivo } from "@/lib/pedidos-api";
 import { useAgregarItem, useBorrador, useEditarItem } from "./use-pedidos";
+import { useProductos } from "./use-productos";
 import { useSubirArchivo } from "./use-subir-archivo";
 
-export const PERSONALIZADO = "__personalizado";
-
 export interface Campos {
-  productoId: string;
-  tamanoId: string; // id de un predefinido o PERSONALIZADO
-  anchoCm: string;
-  altoCm: string;
-  papelId: string;
-  hojaId: string;
+  productoId: string | null;
+  elecciones: Elecciones;
+  medida: { ancho: string; alto: string }; // texto de los inputs, en la unidad de la variante
+  especificaciones: number[];
   cantidad: string;
   descripcion: string;
 }
 
-export type Errores = Partial<Record<keyof Campos | "archivoId", string>>;
+export type CampoEditor =
+  | "archivoId"
+  | "productoId"
+  | "varianteId"
+  | "medida.ancho"
+  | "medida.alto"
+  | "especificaciones"
+  | "cantidad"
+  | "descripcion";
 
-export type Vivo = {
-  pieza: ReturnType<typeof medidasDelTamano>;
-  evaluacion: ReturnType<typeof evaluarItem>;
-  cantidadValida: boolean;
-} | null;
+export type Errores = Partial<Record<CampoEditor, string>>;
 
-/** "1,000" o "1 000" → 1000; "9,5" → 9.5. Vacío o inválido → NaN. */
-const aNumero = (valor: string, decimal = false) => {
-  const limpio = decimal ? valor.trim().replace(",", ".") : valor.replace(/[\s,]/g, "");
+const CAMPOS: CampoEditor[] = [
+  "archivoId",
+  "productoId",
+  "varianteId",
+  "medida.ancho",
+  "medida.alto",
+  "especificaciones",
+  "cantidad",
+  "descripcion",
+];
+const esCampo = (ruta: string): ruta is CampoEditor => (CAMPOS as string[]).includes(ruta);
+
+/** "1,000" o "1 000" → 1000. Vacío o inválido → NaN. */
+const aEntero = (valor: string) => {
+  const limpio = valor.replace(/[\s,]/g, "");
+  return limpio === "" ? Number.NaN : Number(limpio);
+};
+/** "1.5" o "1,5" → 1.5. Vacío o inválido → NaN. */
+const aDecimal = (valor: string) => {
+  const limpio = valor.trim().replace(",", ".");
   return limpio === "" ? Number.NaN : Number(limpio);
 };
 
-function camposIniciales(catalogo: Catalogo): Campos {
-  const producto = catalogo.productos[0];
+const camposVacios = (productoId: string | null): Campos => ({
+  productoId,
+  elecciones: {},
+  medida: { ancho: "", alto: "" },
+  especificaciones: [],
+  cantidad: "",
+  descripcion: "",
+});
+
+function camposDeLinea(linea: LineaPedido): Campos {
+  const variable = linea.medida.tipo === "variable";
   return {
-    productoId: producto.id,
-    tamanoId: producto.tamanos[0]?.id ?? PERSONALIZADO,
-    anchoCm: "",
-    altoCm: "",
-    papelId: producto.papelesIds[0],
-    hojaId: catalogo.hojas[0].id,
-    cantidad: "",
-    descripcion: "",
+    productoId: linea.productoId,
+    elecciones: eleccionesDeVariante(linea),
+    medida: variable ? { ancho: formatearM(linea.medida.ancho), alto: formatearM(linea.medida.alto) } : { ancho: "", alto: "" },
+    especificaciones: linea.especificaciones.map((e) => e.id),
+    cantidad: String(linea.cantidad),
+    descripcion: linea.descripcion,
   };
 }
 
-function camposDelItem(item: Subpedido): Campos {
-  return {
-    productoId: item.productoId,
-    tamanoId: item.tamano.tipo === "predefinido" ? item.tamano.tamanoId : PERSONALIZADO,
-    anchoCm: item.tamano.tipo === "personalizado" ? String(item.tamano.anchoCm) : "",
-    altoCm: item.tamano.tipo === "personalizado" ? String(item.tamano.altoCm) : "",
-    papelId: item.papelId,
-    hojaId: item.hojaId,
-    cantidad: String(item.cantidad),
-    descripcion: item.descripcion,
-  };
+/** Medida capturada para la API: null si la variante es fija; NaN si falta un valor. */
+function medidaCapturada(variante: Variante, medida: Campos["medida"]) {
+  if (variante.medida.tipo === "fija") return null;
+  const ancho = variante.precioPor === "metro_lineal" ? variante.medida.ancho.min : aDecimal(medida.ancho);
+  return { ancho, alto: aDecimal(medida.alto) };
 }
 
 /** Lleva los campos del formulario a la forma de la API. */
-function aItemInput(campos: Campos, archivoId: string): ItemInput {
+function aLineaInput(campos: Campos, variante: Variante | null, archivoId: string): LineaInput {
   return {
     archivoId,
     descripcion: campos.descripcion,
-    productoId: campos.productoId,
-    tamano:
-      campos.tamanoId === PERSONALIZADO
-        ? { tipo: "personalizado", anchoCm: aNumero(campos.anchoCm, true), altoCm: aNumero(campos.altoCm, true) }
-        : { tipo: "predefinido", tamanoId: campos.tamanoId },
-    papelId: campos.papelId,
-    hojaId: campos.hojaId,
-    cantidad: aNumero(campos.cantidad),
+    productoId: campos.productoId ?? "",
+    varianteId: variante?.varianteId ?? "",
+    medida: variante ? medidaCapturada(variante, campos.medida) : null,
+    especificaciones: campos.especificaciones,
+    cantidad: aEntero(campos.cantidad),
   };
 }
 
-/** "tamano.anchoCm" → "anchoCm"; "tamano" → "tamanoId". */
-function campoDeRuta(ruta: string): keyof Errores | null {
-  if (ruta === "tamano.anchoCm") return "anchoCm";
-  if (ruta === "tamano.altoCm") return "altoCm";
-  if (ruta.startsWith("tamano")) return "tamanoId";
-  const campos = ["archivoId", "productoId", "papelId", "hojaId", "cantidad", "descripcion"];
-  return campos.includes(ruta) ? (ruta as keyof Errores) : null;
-}
-
 /**
- * Estado del editor de un ítem: campos, errores, archivo, presupuesto y vista
- * previa en vivo. Sin `itemId` agrega un ítem nuevo; con él edita ese ítem.
+ * Estado del editor de una línea: producto, atributos, medida, acabados, cantidad
+ * y cotización en vivo. Sin `itemId` agrega una línea (con `productoInicial`, p. ej.
+ * desde un banner, llega con el producto elegido); con él edita esa línea.
  */
-export function useEditorItem(itemId?: string) {
+export function useEditorItem({ itemId, productoInicial }: { itemId?: string; productoInicial?: string } = {}) {
   const router = useRouter();
-  const { data: catalogo, error: errorCatalogo } = useCatalogo();
+  const { data: tienda, error: errorProductos } = useProductos();
   const borrador = useBorrador({ enabled: Boolean(itemId) });
   const agregarItem = useAgregarItem();
   const editarItem = useEditarItem();
@@ -115,119 +125,153 @@ export function useEditorItem(itemId?: string) {
   });
   const subiendo = subida.subiendo !== null;
 
-  // Los campos se llenan una sola vez, cuando llegan el catálogo (y el borrador, al editar).
+  const productos = useMemo(() => tienda?.productos ?? [], [tienda]);
+
+  // Los campos se llenan una sola vez, cuando llegan los productos (y el borrador, al editar).
   const datosBorrador = borrador.data;
   useEffect(() => {
-    if (campos || !catalogo) return;
-    if (!itemId) return setCampos(camposIniciales(catalogo));
+    if (campos || !tienda) return;
+    if (!itemId) {
+      // Un ?producto= que no existe o no se vende en línea se ignora.
+      const inicial = tienda.productos.some((p) => p._id === productoInicial) ? productoInicial! : null;
+      return setCampos(camposVacios(inicial));
+    }
     if (!datosBorrador) return;
-    const item = datosBorrador.pedido.items.find((i) => i.id === itemId);
-    if (!item) return setNoEsta(true);
-    setArchivo(datosBorrador.archivos[item.archivoId] ?? null);
-    setCampos(camposDelItem(item));
-  }, [campos, catalogo, datosBorrador, itemId]);
+    const linea = datosBorrador.pedido.productos.find((l) => l.lineaId === itemId);
+    if (!linea) return setNoEsta(true);
+    setArchivo(datosBorrador.archivos[linea.archivoId] ?? null);
+    if (!tienda.productos.some((p) => p._id === linea.productoId)) {
+      setErrores({ productoId: linea.problema ?? `${linea.nombre} ya no se vende en línea` });
+      return setCampos({ ...camposDeLinea(linea), productoId: null });
+    }
+    setCampos(camposDeLinea(linea));
+  }, [campos, tienda, datosBorrador, itemId, productoInicial]);
 
-  const errorCarga = errorCatalogo ?? borrador.error;
+  const errorCarga = errorProductos ?? borrador.error;
   const errorGeneral =
     errorGuardar ??
     (noEsta ? "Este ítem ya no está en tu pedido" : undefined) ??
     (errorCarga ? (errorCarga instanceof ApiError ? errorCarga.message : "No se pudo cargar el editor") : undefined);
 
-  const producto = catalogo?.productos.find((p) => p.id === campos?.productoId);
+  const producto: Producto | undefined = productos.find((p) => p._id === campos?.productoId);
+  const selectores = useMemo(
+    () => (producto && campos ? resolverSelectores(producto.variantes, campos.elecciones) : null),
+    [producto, campos],
+  );
+  const variante = selectores?.variante ?? null;
+  const especificaciones = useMemo(
+    () => (producto && variante ? especificacionesDe(producto, variante.varianteId) : []),
+    [producto, variante],
+  );
 
-  // Presupuesto en vivo: la misma función que usa el servidor.
-  const vivo: Vivo = useMemo(() => {
-    if (!catalogo || !campos || !producto) return null;
-    const input = aItemInput(campos, archivo?.id ?? "");
-    const tamano = tamanoSchema.safeParse(input.tamano);
-    if (!tamano.success) return null;
-    const pieza = medidasDelTamano(producto, tamano.data);
+  // Cotización en vivo: la misma evaluación que usa el servidor. Sin cantidad válida
+  // se cotiza la cantidad mínima para mostrar el importe unitario.
+  const vivo = useMemo(() => {
+    if (!campos || !variante) return null;
+    const input = aLineaInput(campos, variante, archivo?.id ?? "");
+    if (input.medida && (Number.isNaN(input.medida.ancho) || Number.isNaN(input.medida.alto))) return null;
     const cantidad = cantidadSchema.safeParse(input.cantidad);
-    // Sin cantidad válida se evalúa con 1 para saber si cabe y cuántas piezas por hoja.
-    const evaluacion = evaluarItem(catalogo, {
-      ...input,
-      tamano: tamano.data,
-      cantidad: cantidad.success ? cantidad.data : 1,
+    const evaluacion = evaluarLinea(productos, {
+      productoId: input.productoId,
+      varianteId: input.varianteId,
+      medida: input.medida ?? null,
+      especificaciones: input.especificaciones ?? [],
+      cantidad: cantidad.success ? cantidad.data : variante.cantidadMinima,
     });
-    return { pieza, evaluacion, cantidadValida: cantidad.success };
-  }, [catalogo, campos, producto, archivo]);
+    return { evaluacion, cantidadValida: cantidad.success };
+  }, [campos, variante, archivo, productos]);
 
-  function cambiar<K extends keyof Campos>(campo: K, valor: Campos[K]) {
-    setCampos((actual) => (actual ? { ...actual, [campo]: valor } : actual));
-    setErrores((actual) => ({ ...actual, [campo]: undefined }));
+  // Los errores de medida se muestran en cuanto se detectan, sin esperar a guardar.
+  const errorVivo =
+    vivo && !vivo.evaluacion.ok && vivo.evaluacion.campo.startsWith("medida.")
+      ? { [vivo.evaluacion.campo]: vivo.evaluacion.mensaje }
+      : {};
+  const erroresVisibles: Errores = { ...errores, ...errorVivo };
+
+  function actualizar(cambio: Partial<Campos>, limpiar: CampoEditor[]) {
+    setCampos((actual) => (actual ? { ...actual, ...cambio } : actual));
+    setErrores((actual) => {
+      const siguiente = { ...actual };
+      for (const campo of limpiar) delete siguiente[campo];
+      return siguiente;
+    });
   }
 
-  function cambiarProducto(productoId: string) {
-    const nuevo = catalogo?.productos.find((p) => p.id === productoId);
-    if (!nuevo || !campos) return;
-    setCampos({
-      ...campos,
-      productoId,
-      tamanoId: nuevo.tamanos[0]?.id ?? PERSONALIZADO,
-      papelId: nuevo.papelesIds.includes(campos.papelId) ? campos.papelId : nuevo.papelesIds[0],
-    });
-    setErrores({});
+  function elegirProducto(productoId: string) {
+    if (!campos || productoId === campos.productoId) return;
+    setCampos({ ...camposVacios(productoId), cantidad: campos.cantidad, descripcion: campos.descripcion });
+    setErrores(({ archivoId }) => (archivoId ? { archivoId } : {}));
+  }
+
+  function elegir(llave: string, valor: string) {
+    if (!producto || !campos) return;
+    const elecciones = elegirAtributo(producto.variantes, campos.elecciones, llave, valor);
+    // Los acabados que no aplican a la nueva variante se quitan.
+    const nueva = resolverSelectores(producto.variantes, elecciones).variante;
+    const aplican = nueva ? especificacionesDe(producto, nueva.varianteId).map((e) => e.id) : [];
+    actualizar(
+      { elecciones, especificaciones: campos.especificaciones.filter((id) => aplican.includes(id)) },
+      ["varianteId", "especificaciones", "medida.ancho", "medida.alto"],
+    );
   }
 
   async function guardar(evento: React.FormEvent) {
     evento.preventDefault();
-    if (!catalogo || !campos || subiendo) return;
+    if (!campos || subiendo) return;
     setErrorGuardar(undefined);
 
-    const input = aItemInput(campos, archivo?.id ?? "");
+    const input = aLineaInput(campos, variante, archivo?.id ?? "");
     const nuevos: Errores = {};
     if (!archivo) nuevos.archivoId = "Sube el archivo que quieres imprimir";
-    const validacion = itemSchema.safeParse(input);
+    if (!producto) nuevos.productoId ??= "Elige un producto";
+    else if (!variante) nuevos.varianteId = "Elige todas las opciones del producto";
+
+    const validacion = lineaSchema.safeParse(input);
     if (!validacion.success) {
       for (const issue of validacion.error.issues) {
-        const campo = campoDeRuta(issue.path.join("."));
-        if (campo && campo !== "archivoId") nuevos[campo] ??= issue.message;
+        const ruta = issue.path.join(".");
+        if (esCampo(ruta) && !["archivoId", "productoId", "varianteId"].includes(ruta)) nuevos[ruta] ??= issue.message;
       }
-    } else {
-      const evaluacion = evaluarItem(catalogo, validacion.data);
-      if (!evaluacion.ok) nuevos[evaluacion.campo === "tamano" ? "tamanoId" : evaluacion.campo] = evaluacion.mensaje;
+    } else if (variante) {
+      const evaluacion = evaluarLinea(productos, validacion.data);
+      if (!evaluacion.ok) nuevos[evaluacion.campo] ??= evaluacion.mensaje;
     }
     setErrores(nuevos);
     if (Object.keys(nuevos).length > 0) return;
 
     setGuardando(true);
     try {
-      if (itemId) await editarItem.mutateAsync({ itemId, input });
+      if (itemId) await editarItem.mutateAsync({ lineaId: itemId, input });
       else await agregarItem.mutateAsync(input);
       router.push("/panel/pedidos/nuevo");
     } catch (e) {
       setGuardando(false);
       if (!(e instanceof ApiError)) return setErrorGuardar("Ocurrió un error inesperado");
       const delServidor: Errores = {};
-      for (const [ruta, mensaje] of Object.entries(e.fields)) {
-        const campo = campoDeRuta(ruta);
-        if (campo) delServidor[campo] = mensaje;
-      }
+      for (const [ruta, mensaje] of Object.entries(e.fields)) if (esCampo(ruta)) delServidor[ruta] = mensaje;
       setErrores(delServidor);
       if (Object.keys(delServidor).length === 0) setErrorGuardar(e.message);
     }
   }
 
-  const hojaElegida = catalogo?.hojas.find((h) => h.id === campos?.hojaId);
-
-  // "No cabe" se muestra junto a la hoja en cuanto se detecta, sin esperar a guardar.
-  const noCabe = vivo && !vivo.evaluacion.ok && vivo.evaluacion.noCabe ? vivo.evaluacion.mensaje : undefined;
-
   return {
-    catalogo,
+    tienda,
+    productos,
     campos,
     producto,
+    selectores: selectores?.selectores ?? [],
+    variante,
+    especificaciones,
     archivo,
-    errores,
+    errores: erroresVisibles,
     errorGeneral,
     guardando,
     subida,
     subiendo,
     vivo,
-    noCabe,
-    hojaElegida,
-    cambiar,
-    cambiarProducto,
+    actualizar,
+    elegirProducto,
+    elegir,
     guardar,
   };
 }

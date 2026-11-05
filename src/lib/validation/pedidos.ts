@@ -1,8 +1,6 @@
 import { z } from "zod";
 
 // Reglas compartidas por cliente (editor de ítem, subida) y servidor (route handlers).
-// Las reglas que dependen del catálogo (producto, tamaño, papel, hoja) las valida
-// el servidor contra el catálogo vigente.
 
 export const MAX_ITEMS_POR_PEDIDO = 20;
 export const CANTIDAD_MINIMA = 1;
@@ -45,29 +43,13 @@ export function esPrevisualizable(extension: ExtensionPermitida): boolean {
 export const MENSAJE_FORMATO_NO_PERMITIDO = "Formato no permitido";
 export const MENSAJE_ARCHIVO_GRANDE = "El archivo supera 50 MB";
 
-// ── Ítem (subpedido) ────────────────────────────────────────────────────────
+// ── Línea de KARSO (SPEC 04) ────────────────────────────────────────────────
 
 const idSchema = (campo: string) =>
   z.string({ error: `${campo} es obligatorio` }).trim().min(1, `${campo} es obligatorio`);
 
 const medidaSchema = (campo: string) =>
   z.number({ error: `${campo} debe ser un número` }).positive(`${campo} debe ser mayor que 0`);
-
-export const tamanoSchema = z.discriminatedUnion(
-  "tipo",
-  [
-    z.object({
-      tipo: z.literal("predefinido"),
-      tamanoId: idSchema("El tamaño"),
-    }),
-    z.object({
-      tipo: z.literal("personalizado"),
-      anchoCm: medidaSchema("El ancho"),
-      altoCm: medidaSchema("El alto"),
-    }),
-  ],
-  { error: "Elige un tamaño" },
-);
 
 export const cantidadSchema = z
   .number({ error: "La cantidad debe ser un número" })
@@ -80,16 +62,28 @@ export const descripcionSchema = z
   .trim()
   .max(DESCRIPCION_MAXIMA, `La descripción no puede tener más de ${DESCRIPCION_MAXIMA} caracteres`);
 
-export const itemSchema = z.object({
+// Las reglas que dependen del catálogo (variante en línea, rango de la medida,
+// especificaciones aplicables, cantidad mínima) las valida `evaluarLinea`.
+
+export const medidaCapturadaSchema = z.object({
+  ancho: medidaSchema("El ancho"),
+  alto: medidaSchema("El alto"),
+});
+
+export const lineaSchema = z.object({
   archivoId: idSchema("El archivo"),
   descripcion: descripcionSchema.default(""),
   productoId: idSchema("El producto"),
-  tamano: tamanoSchema,
-  papelId: idSchema("El papel"),
-  hojaId: idSchema("La hoja"),
+  varianteId: idSchema("La variante"),
+  medida: medidaCapturadaSchema.nullable().default(null), // solo variantes de medida variable
+  especificaciones: z
+    .array(z.number({ error: "Acabado inválido" }).int("Acabado inválido"))
+    .refine((ids) => new Set(ids).size === ids.length, "Un acabado está repetido")
+    .default([]),
   cantidad: cantidadSchema,
 });
 
-export type Tamano = z.output<typeof tamanoSchema>;
-export type ItemInput = z.input<typeof itemSchema>;
-export type ItemData = z.output<typeof itemSchema>;
+export type MedidaCapturada = z.output<typeof medidaCapturadaSchema>;
+export type LineaInput = z.input<typeof lineaSchema>;
+export type LineaData = z.output<typeof lineaSchema>;
+

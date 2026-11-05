@@ -2,42 +2,43 @@ import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Rutas de datos, archivos y catálogo temporales antes de importar los módulos.
+// Rutas de datos, archivos y mock del panel temporales antes de importar los módulos.
 const env = vi.hoisted(() => {
   const base = `${process.env.TMPDIR ?? "/tmp"}/pedidos-routes-${process.pid}`;
   process.env.DATA_DIR = `${base}/data`;
   process.env.UPLOADS_DIR = `${base}/uploads`;
-  process.env.CATALOGO_PATH = `${base}/catalogo.json`;
+  process.env.PRODUCTOS_PATH = `${base}/productos.json`;
   process.env.AUTH_SECRET = "x".repeat(32);
   return {
     base,
     dataDir: process.env.DATA_DIR,
-    catalogoPath: process.env.CATALOGO_PATH,
+    productosPath: process.env.PRODUCTOS_PATH,
   };
 });
 
 vi.mock("next/headers", () => import("@/test/next-headers-mock"));
 
 import { POST as subir } from "@/app/api/archivos/route";
+import type { ProductosArchivo } from "@/lib/catalogo/schema";
+import { PRODUCTOS_PATH } from "@/server/mock-panel";
 import { POST as cancelar } from "./[id]/cancelar/route";
 import { GET as detalle } from "./[id]/route";
 import { POST as confirmar } from "./borrador/confirmar/route";
 import { POST as agregar } from "./borrador/items/route";
 import { GET as getBorrador } from "./borrador/route";
 import { GET as listar } from "./route";
-import { CATALOGO_PATH } from "@/server/catalogo";
 import { jar } from "@/test/next-headers-mock";
 import { cambiarSesion, iniciarSesionActiva } from "@/test/sesion";
 
-interface CatalogoEditable {
-  papeles: { id: string; precioHojaCentavos: Record<string, number> }[];
-  productos: { papelesIds: string[] }[];
-}
+const TARJETA = "6720a1f0c1a2b3c4d5e60201";
+const TARJETA_COUCHE = "6720a1f0c1a2b3c4d5e60211";
+const SUAJE = 2;
 
-async function editarCatalogo(cambiar: (catalogo: CatalogoEditable) => void) {
-  const catalogo = JSON.parse(await readFile(env.catalogoPath, "utf8"));
-  cambiar(catalogo);
-  await writeFile(env.catalogoPath, JSON.stringify(catalogo));
+/** Cambia la tarjeta couché en la copia del mock del panel. */
+async function editarTarjetaCouche(cambiar: (variante: ProductosArchivo["productos"][0]["variantes"][0]) => void) {
+  const archivo: ProductosArchivo = JSON.parse(await readFile(env.productosPath, "utf8"));
+  cambiar(archivo.productos.find((p) => p._id === TARJETA)!.variantes.find((v) => v.varianteId === TARJETA_COUCHE)!);
+  await writeFile(env.productosPath, JSON.stringify(archivo));
 }
 
 const ordersPath = () => path.join(env.dataDir, "orders.json");
@@ -47,10 +48,10 @@ const idCtx = (id: string) => ({ params: Promise.resolve({ id }) });
 const getDetalle = (id: string) => detalle(new Request("http://localhost"), idCtx(id));
 const postCancelar = (id: string) => cancelar(new Request("http://localhost", { method: "POST" }), idCtx(id));
 
-/** Sube un archivo y agrega 1,000 volantes media carta couché 150 en tabloide ($2,500.00). */
-async function agregarVolante() {
+/** Sube un archivo y agrega 2 millares de tarjeta couché con suaje ($310.00). */
+async function agregarTarjeta() {
   const form = new FormData();
-  form.append("archivo", new File(["imagen"], "volante.jpg"));
+  form.append("archivo", new File(["imagen"], "tarjeta.jpg"));
   const subida = await subir(new Request("http://localhost/api/archivos", { method: "POST", body: form }));
   const archivoId = (await subida.json()).archivo.id;
   const res = await agregar(
@@ -59,11 +60,10 @@ async function agregarVolante() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         archivoId,
-        productoId: "volante",
-        tamano: { tipo: "predefinido", tamanoId: "media-carta" },
-        papelId: "couche-150",
-        hojaId: "tabloide",
-        cantidad: 1000,
+        productoId: TARJETA,
+        varianteId: TARJETA_COUCHE,
+        especificaciones: [SUAJE],
+        cantidad: 2,
       }),
     }),
   );
@@ -71,7 +71,7 @@ async function agregarVolante() {
 }
 
 async function confirmarUnPedido() {
-  await agregarVolante();
+  await agregarTarjeta();
   const res = await confirmar();
   expect(res.status).toBe(201);
   return (await res.json()).pedido;
@@ -80,7 +80,7 @@ async function confirmarUnPedido() {
 beforeEach(async () => {
   await rm(env.base, { recursive: true, force: true });
   await mkdir(env.base, { recursive: true });
-  await copyFile(CATALOGO_PATH, env.catalogoPath);
+  await copyFile(PRODUCTOS_PATH, env.productosPath);
   jar.clear();
 });
 
@@ -103,7 +103,7 @@ describe("POST /api/pedidos/borrador/confirmar", () => {
     });
   });
 
-  it("con un borrador de 0 ítems → 422 PEDIDO_VACIO y no gasta folio", async () => {
+  it("con un borrador de 0 líneas → 422 PEDIDO_VACIO y no gasta folio", async () => {
     await iniciarSesionActiva();
     await getBorrador();
     const res = await confirmar();
@@ -112,14 +112,17 @@ describe("POST /api/pedidos/borrador/confirmar", () => {
     expect(await readOrders()).toMatchObject({ ultimoFolio: 0, pedidos: [{ estado: "borrador" }] });
   });
 
-  it("asigna P-000001, pasa a pedido con pago pendiente y totales del borrador", async () => {
+  it("asigna P-000001, pasa a pedido con pago pendiente y totales del borrador (sin IVA)", async () => {
     await iniciarSesionActiva();
     const pedido = await confirmarUnPedido();
     expect(pedido).toMatchObject({
       folio: "P-000001",
       estado: "pedido",
       pago: { estado: "pendiente" },
-      totales: { subtotalCentavos: 250_000, ivaCentavos: 40_000, totalCentavos: 290_000 },
+      subtotal: 310,
+      tasaIva: 0,
+      iva: 0,
+      total: 310,
     });
     expect(pedido.confirmadoAt).not.toBeNull();
   });
@@ -136,14 +139,14 @@ describe("POST /api/pedidos/borrador/confirmar", () => {
     const confirmado = await confirmarUnPedido();
     const { pedido } = await (await getBorrador()).json();
     expect(pedido.id).not.toBe(confirmado.id);
-    expect(pedido).toMatchObject({ estado: "borrador", items: [], folio: null });
+    expect(pedido).toMatchObject({ estado: "borrador", productos: [], folio: null });
   });
 
-  it("un ítem con problema → 409 ITEMS_CON_PROBLEMAS y sigue en borrador", async () => {
+  it("una línea con problema → 409 ITEMS_CON_PROBLEMAS y sigue en borrador", async () => {
     await iniciarSesionActiva();
-    await agregarVolante();
-    await editarCatalogo((c) => {
-      c.productos[0].papelesIds = ["bond-90"]; // el volante ya no permite couché 150
+    await agregarTarjeta();
+    await editarTarjetaCouche((v) => {
+      v.activa = false;
     });
     const res = await confirmar();
     expect(res.status).toBe(409);
@@ -153,33 +156,34 @@ describe("POST /api/pedidos/borrador/confirmar", () => {
 
   it("confirma con los precios vigentes al momento de confirmar", async () => {
     await iniciarSesionActiva();
-    await agregarVolante();
-    await editarCatalogo((c) => {
-      c.papeles.find((p) => p.id === "couche-150")!.precioHojaCentavos.tabloide = 600;
+    await agregarTarjeta();
+    await editarTarjetaCouche((v) => {
+      v.precio = 120;
     });
     const pedido = (await (await confirmar()).json()).pedido;
-    expect(pedido.totales.subtotalCentavos).toBe(300_000);
+    expect(pedido.total).toBe(320);
   });
 
   it("los totales quedan congelados: cambiar el catálogo después no los altera", async () => {
     await iniciarSesionActiva();
     const confirmado = await confirmarUnPedido();
-    await editarCatalogo((c) => {
-      c.papeles.find((p) => p.id === "couche-150")!.precioHojaCentavos.tabloide = 999;
+    await editarTarjetaCouche((v) => {
+      v.precio = 999;
+      v.activa = false;
     });
 
     const { pedido } = await (await getDetalle(confirmado.id)).json();
-    expect(pedido.totales).toEqual(confirmado.totales);
-    expect(pedido.items[0].presupuesto.precioHojaCentavos).toBe(500);
+    expect(pedido.total).toBe(confirmado.total);
+    expect(pedido.productos[0]).toMatchObject({ precioBase: 115, subtotal: 310, problema: null });
     const lista = (await (await listar()).json()).pedidos;
-    expect(lista[0].totales.totalCentavos).toBe(290_000);
+    expect(lista[0].total).toBe(310);
   });
 });
 
 describe("GET /api/pedidos", () => {
   it("sin pedidos devuelve una lista vacía (el borrador no cuenta)", async () => {
     await iniciarSesionActiva();
-    await agregarVolante();
+    await agregarTarjeta();
     expect((await (await listar()).json()).pedidos).toEqual([]);
   });
 
@@ -188,7 +192,7 @@ describe("GET /api/pedidos", () => {
     const primero = await confirmarUnPedido();
     await new Promise((r) => setTimeout(r, 5));
     const segundo = await confirmarUnPedido();
-    await agregarVolante(); // borrador actual: no aparece
+    await agregarTarjeta(); // borrador actual: no aparece
 
     await iniciarSesionActiva("beto@ejemplo.com");
     await confirmarUnPedido();
@@ -207,7 +211,7 @@ describe("GET /api/pedidos/:id", () => {
     expect(res.status).toBe(200);
     const { pedido, archivos } = await res.json();
     expect(pedido.folio).toBe("P-000001");
-    expect(archivos[pedido.items[0].archivoId].nombreOriginal).toBe("volante.jpg");
+    expect(archivos[pedido.productos[0].archivoId].nombreOriginal).toBe("tarjeta.jpg");
   });
 
   it("el pedido de otro usuario → 404", async () => {
@@ -234,7 +238,7 @@ describe("POST /api/pedidos/:id/cancelar", () => {
     const { pedido } = await res.json();
     expect(pedido.estado).toBe("cancelado");
     expect(pedido.canceladoAt).not.toBeNull();
-    expect(pedido.totales).toEqual(confirmado.totales);
+    expect(pedido.total).toBe(confirmado.total);
   });
 
   it("en en_proceso (editado a mano en el JSON) → 409", async () => {

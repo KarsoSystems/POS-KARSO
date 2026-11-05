@@ -67,7 +67,6 @@ describe("pedidosApi", () => {
   const item = {} as never;
 
   it.each([
-    ["catalogo", () => pedidosApi.catalogo(), "GET", "/api/catalogo"],
     ["borrador", () => pedidosApi.borrador(), "GET", "/api/pedidos/borrador"],
     ["agregarItem", () => pedidosApi.agregarItem(item), "POST", "/api/pedidos/borrador/items"],
     ["editarItem", () => pedidosApi.editarItem("i1", item), "PUT", "/api/pedidos/borrador/items/i1"],

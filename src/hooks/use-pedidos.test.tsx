@@ -15,7 +15,7 @@ const jsonResponse = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 const respuesta = (id: string, estado = "borrador") =>
-  ({ pedido: { id, estado, items: [] }, archivos: {} }) as unknown as PedidoResponse;
+  ({ pedido: { id, estado, productos: [] }, archivos: {} }) as unknown as PedidoResponse;
 
 let queryClient: QueryClient;
 const wrapper = ({ children }: { children: React.ReactNode }) => (

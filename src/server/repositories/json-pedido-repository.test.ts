@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatFolio } from "@/server/domain/pedido";
 import { createJsonPedidoRepository } from "./json-pedido-repository";
 import { EstadoPedidoInvalidoError, PedidoNoEncontradoError, type PedidoRepository } from "./types";
@@ -27,53 +27,71 @@ describe("formatFolio", () => {
   });
 });
 
+describe("orders.json de la SPEC 02", () => {
+  it("un archivo de versión 1 se descarta y se reinicia vacío en la versión 2", async () => {
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const v1 = { version: 1, ultimoFolio: 3, pedidos: [{ id: "viejo", userId: "u1", estado: "borrador", items: [] }] };
+    await writeFile(path.join(dir, "orders.json"), JSON.stringify(v1));
+
+    expect(await repo.findBorrador("u1")).toBeNull();
+    expect(await readOrders()).toEqual({ version: 2, ultimoFolio: 0, pedidos: [] });
+    expect(aviso).toHaveBeenCalledWith(expect.stringMatching(/orders\.json: versión 1 descartada/));
+    aviso.mockRestore();
+  });
+});
+
 describe("borrador", () => {
   it("crearBorrador crea un pedido vacío en borrador", async () => {
-    const pedido = await repo.crearBorrador("u1", 0.16);
+    const pedido = await repo.crearBorrador("u1");
     expect(pedido).toMatchObject({
       folio: null,
       userId: "u1",
       estado: "borrador",
-      items: [],
-      totales: { subtotalCentavos: 0, ivaCentavos: 0, totalCentavos: 0, tasaIva: 0.16 },
+      productos: [],
+      subtotal: 0,
+      descuento: 0,
+      baseIva: 0,
+      tasaIva: 0,
+      iva: 0,
+      total: 0,
       pago: { estado: "pendiente" },
       confirmadoAt: null,
       canceladoAt: null,
     });
     expect(await repo.findBorrador("u1")).toEqual(pedido);
-    expect(await readOrders()).toEqual({ version: 1, ultimoFolio: 0, pedidos: [pedido] });
+    expect(await readOrders()).toEqual({ version: 2, ultimoFolio: 0, pedidos: [pedido] });
   });
 
   it("findBorrador devuelve null si el usuario no tiene", async () => {
-    await repo.crearBorrador("u1", 0.16);
+    await repo.crearBorrador("u1");
     expect(await repo.findBorrador("u2")).toBeNull();
   });
 
   it("hay un solo borrador por usuario aunque se cree dos veces", async () => {
-    const primero = await repo.crearBorrador("u1", 0.16);
-    const segundo = await repo.crearBorrador("u1", 0.16);
+    const primero = await repo.crearBorrador("u1");
+    const segundo = await repo.crearBorrador("u1");
     expect(segundo.id).toBe(primero.id);
     expect((await readOrders()).pedidos).toHaveLength(1);
   });
 
   it("hay un solo borrador por usuario con creaciones concurrentes", async () => {
-    const creados = await Promise.all(Array.from({ length: 10 }, () => repo.crearBorrador("u1", 0.16)));
+    const creados = await Promise.all(Array.from({ length: 10 }, () => repo.crearBorrador("u1")));
     expect(new Set(creados.map((p) => p.id)).size).toBe(1);
     expect((await readOrders()).pedidos).toHaveLength(1);
   });
 
   it("después de confirmar, crearBorrador crea uno nuevo", async () => {
-    const primero = await repo.crearBorrador("u1", 0.16);
+    const primero = await repo.crearBorrador("u1");
     await repo.confirmar(primero.id);
     expect(await repo.findBorrador("u1")).toBeNull();
-    const nuevo = await repo.crearBorrador("u1", 0.16);
+    const nuevo = await repo.crearBorrador("u1");
     expect(nuevo.id).not.toBe(primero.id);
   });
 });
 
 describe("update", () => {
   it("aplica los cambios y actualiza updatedAt", async () => {
-    const pedido = await repo.crearBorrador("u1", 0.16);
+    const pedido = await repo.crearBorrador("u1");
     await new Promise((r) => setTimeout(r, 5));
     const actualizado = await repo.update(pedido.id, (p) => {
       p.estado = "cancelado";
@@ -84,7 +102,7 @@ describe("update", () => {
   });
 
   it("no deja cambiar id, userId, folio ni createdAt", async () => {
-    const pedido = await repo.crearBorrador("u1", 0.16);
+    const pedido = await repo.crearBorrador("u1");
     const actualizado = await repo.update(pedido.id, (p) => {
       p.id = "otro";
       p.userId = "u2";
@@ -100,7 +118,7 @@ describe("update", () => {
   });
 
   it("si el cambio lanza, no se guarda nada", async () => {
-    const pedido = await repo.crearBorrador("u1", 0.16);
+    const pedido = await repo.crearBorrador("u1");
     await expect(
       repo.update(pedido.id, (p) => {
         p.estado = "cancelado";
@@ -117,7 +135,7 @@ describe("update", () => {
 
 describe("confirmar", () => {
   it("asigna P-000001, pasa a pedido y fija confirmadoAt", async () => {
-    const borrador = await repo.crearBorrador("u1", 0.16);
+    const borrador = await repo.crearBorrador("u1");
     const pedido = await repo.confirmar(borrador.id);
     expect(pedido).toMatchObject({ folio: "P-000001", estado: "pedido" });
     expect(pedido.confirmadoAt).toBe(pedido.updatedAt);
@@ -125,15 +143,15 @@ describe("confirmar", () => {
   });
 
   it("aplica los cambios en el mismo lock (p. ej. congelar totales)", async () => {
-    const borrador = await repo.crearBorrador("u1", 0.16);
+    const borrador = await repo.crearBorrador("u1");
     const pedido = await repo.confirmar(borrador.id, (p) => {
-      p.totales.subtotalCentavos = 250_000;
+      p.subtotal = 2500;
     });
-    expect(pedido.totales.subtotalCentavos).toBe(250_000);
+    expect(pedido.subtotal).toBe(2500);
   });
 
   it("si el cambio lanza, no se confirma ni se gasta folio", async () => {
-    const borrador = await repo.crearBorrador("u1", 0.16);
+    const borrador = await repo.crearBorrador("u1");
     await expect(
       repo.confirmar(borrador.id, () => {
         throw new Error("vacío");
@@ -146,7 +164,7 @@ describe("confirmar", () => {
   });
 
   it("solo confirma borradores", async () => {
-    const borrador = await repo.crearBorrador("u1", 0.16);
+    const borrador = await repo.crearBorrador("u1");
     await repo.confirmar(borrador.id);
     await expect(repo.confirmar(borrador.id)).rejects.toBeInstanceOf(EstadoPedidoInvalidoError);
     expect((await readOrders()).ultimoFolio).toBe(1);
@@ -154,7 +172,7 @@ describe("confirmar", () => {
 
   it("folios consecutivos y sin repetir con confirmaciones concurrentes", async () => {
     const borradores = await Promise.all(
-      Array.from({ length: 8 }, (_, i) => repo.crearBorrador(`u${i}`, 0.16)),
+      Array.from({ length: 8 }, (_, i) => repo.crearBorrador(`u${i}`)),
     );
     const confirmados = await Promise.all(borradores.map((b) => repo.confirmar(b.id)));
 
@@ -166,17 +184,17 @@ describe("confirmar", () => {
 
 describe("findById y listByUser", () => {
   it("findById devuelve el pedido o null", async () => {
-    const pedido = await repo.crearBorrador("u1", 0.16);
+    const pedido = await repo.crearBorrador("u1");
     expect((await repo.findById(pedido.id))?.id).toBe(pedido.id);
     expect(await repo.findById("no-existe")).toBeNull();
   });
 
   it("lista solo los del usuario, sin el borrador, recientes primero", async () => {
-    const primero = await repo.confirmar((await repo.crearBorrador("u1", 0.16)).id);
+    const primero = await repo.confirmar((await repo.crearBorrador("u1")).id);
     await new Promise((r) => setTimeout(r, 5));
-    const segundo = await repo.confirmar((await repo.crearBorrador("u1", 0.16)).id);
-    await repo.crearBorrador("u1", 0.16); // borrador actual
-    await repo.confirmar((await repo.crearBorrador("u2", 0.16)).id); // de otro usuario
+    const segundo = await repo.confirmar((await repo.crearBorrador("u1")).id);
+    await repo.crearBorrador("u1"); // borrador actual
+    await repo.confirmar((await repo.crearBorrador("u2")).id); // de otro usuario
 
     const lista = await repo.listByUser("u1");
     expect(lista.map((p) => p.folio)).toEqual([segundo.folio, primero.folio]);

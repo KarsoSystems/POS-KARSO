@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import type { Catalogo } from "@/lib/catalogo/schema";
-import { evaluarItem } from "@/lib/pedidos/item";
-import { calcularTotales } from "@/lib/pedidos/presupuesto";
-import { MAX_ITEMS_POR_PEDIDO, type ItemData } from "@/lib/validation/pedidos";
+import type { Producto } from "@/lib/catalogo/schema";
+import { calcularTotales } from "@/lib/pedidos/cotizacion";
+import { evaluarLinea } from "@/lib/pedidos/linea";
+import { MAX_ITEMS_POR_PEDIDO, type LineaData } from "@/lib/validation/pedidos";
 import { archivoKey, toPublicArchivo, type PublicArchivo } from "@/server/domain/archivo";
-import type { Pedido, Subpedido } from "@/server/domain/pedido";
+import type { LineaPedido, Pedido } from "@/server/domain/pedido";
 import { apiError } from "@/server/http/responses";
 import {
   archivoRepository,
@@ -13,29 +13,38 @@ import {
 } from "@/server/repositories";
 import { fileStorage } from "@/server/storage";
 
+// `productos` es el catálogo completo del mock del panel (sin filtrar), para que
+// los problemas distingan "ya no está disponible" de "solo se vende en mostrador".
+
+/** Lo que se capturó de una línea guardada, para volver a evaluarla. */
+const datosDe = (linea: LineaPedido) => ({
+  productoId: linea.productoId,
+  varianteId: linea.varianteId,
+  medida: linea.medida.tipo === "variable" ? { ancho: linea.medida.ancho, alto: linea.medida.alto } : null,
+  especificaciones: linea.especificaciones.map((e) => e.id),
+  cantidad: linea.cantidad,
+});
+
 /**
- * Recalcula los ítems del borrador con el catálogo vigente. Si un ítem ya no es
- * válido (se quitó el papel, el producto…), conserva su último presupuesto y
- * marca `problema`; la confirmación queda bloqueada hasta corregirlo.
+ * Recalcula las líneas del borrador con el catálogo vigente. Si una línea ya no es
+ * válida (variante inactiva, solo de mostrador, medida fuera de rango…), conserva
+ * su último importe y marca `problema`; la confirmación queda bloqueada hasta corregirla.
  */
-export function recalcularBorrador(pedido: Pedido, catalogo: Catalogo): void {
-  for (const item of pedido.items) {
-    const evaluacion = evaluarItem(catalogo, item);
+export function recalcularBorrador(pedido: Pedido, productos: Producto[]): void {
+  for (const linea of pedido.productos) {
+    const evaluacion = evaluarLinea(productos, datosDe(linea));
     if (evaluacion.ok) {
-      item.anchoCm = evaluacion.anchoCm;
-      item.altoCm = evaluacion.altoCm;
-      item.presupuesto = evaluacion.presupuesto;
-      item.problema = null;
+      Object.assign(linea, evaluacion.linea, { problema: null });
     } else {
-      item.problema = evaluacion.mensaje;
+      linea.problema = evaluacion.mensaje;
     }
   }
-  pedido.totales = calcularTotales(pedido.items, catalogo.tasaIva);
+  Object.assign(pedido, calcularTotales(pedido.productos));
 }
 
-/** Datos públicos de los archivos que usan los ítems, por id (para miniaturas y nombres). */
+/** Datos públicos de los archivos que usan las líneas, por id (para miniaturas y nombres). */
 export async function archivosDe(pedido: Pedido): Promise<Record<string, PublicArchivo>> {
-  const ids = [...new Set(pedido.items.map((item) => item.archivoId))];
+  const ids = [...new Set(pedido.productos.map((linea) => linea.archivoId))];
   const archivos = await Promise.all(ids.map((id) => archivoRepository.findById(id)));
   return Object.fromEntries(
     archivos.filter((a) => a !== null).map((a) => [a.id, toPublicArchivo(a)]),
@@ -46,7 +55,7 @@ export async function archivosDe(pedido: Pedido): Promise<Record<string, PublicA
 export async function liberarArchivoSiNoSeUsa(userId: string, archivoId: string): Promise<void> {
   const borrador = await pedidoRepository.findBorrador(userId);
   const pedidos = [...(borrador ? [borrador] : []), ...(await pedidoRepository.listByUser(userId))];
-  if (pedidos.some((p) => p.items.some((item) => item.archivoId === archivoId))) return;
+  if (pedidos.some((p) => p.productos.some((linea) => linea.archivoId === archivoId))) return;
 
   const archivo = await archivoRepository.findById(archivoId);
   if (!archivo || archivo.userId !== userId) return;
@@ -62,8 +71,8 @@ export class MaximoItemsError extends Error {
 }
 
 export class ItemNoEncontradoError extends Error {
-  constructor(itemId: string) {
-    super(`Ítem ${itemId} no encontrado`);
+  constructor(lineaId: string) {
+    super(`Ítem ${lineaId} no encontrado`);
     this.name = "ItemNoEncontradoError";
   }
 }
@@ -75,16 +84,16 @@ export class ItemNoEncontradoError extends Error {
  */
 export async function cambiarBorrador(
   userId: string,
-  catalogo: Catalogo,
+  productos: Producto[],
   cambiar: (pedido: Pedido) => void = () => {},
 ): Promise<Pedido> {
   for (let intento = 0; ; intento++) {
-    const borrador = await pedidoRepository.crearBorrador(userId, catalogo.tasaIva);
+    const borrador = await pedidoRepository.crearBorrador(userId);
     try {
       return await pedidoRepository.update(borrador.id, (pedido) => {
         if (pedido.estado !== "borrador") throw new EstadoPedidoInvalidoError(pedido.id, pedido.estado);
         cambiar(pedido);
-        recalcularBorrador(pedido, catalogo);
+        recalcularBorrador(pedido, productos);
       });
     } catch (error) {
       if (!(error instanceof EstadoPedidoInvalidoError) || intento > 0) throw error;
@@ -93,14 +102,14 @@ export async function cambiarBorrador(
 }
 
 /**
- * Valida un ítem contra el catálogo y que el archivo sea del usuario. Devuelve
- * el subpedido listo (sin id) o la respuesta de error: 422 VALIDACION o NO_CABE.
+ * Valida una línea contra el catálogo y que el archivo sea del usuario. Devuelve
+ * la línea lista (sin lineaId) o la respuesta de error 422 VALIDACION.
  */
-export async function prepararItem(
-  data: ItemData,
+export async function prepararLinea(
+  data: LineaData,
   userId: string,
-  catalogo: Catalogo,
-): Promise<{ item: Omit<Subpedido, "id">; response?: never } | { item?: never; response: NextResponse }> {
+  productos: Producto[],
+): Promise<{ linea: Omit<LineaPedido, "lineaId">; response?: never } | { linea?: never; response: NextResponse }> {
   const archivo = await archivoRepository.findById(data.archivoId);
   if (!archivo || archivo.userId !== userId) {
     return {
@@ -110,30 +119,21 @@ export async function prepararItem(
     };
   }
 
-  const evaluacion = evaluarItem(catalogo, data);
+  const evaluacion = evaluarLinea(productos, data);
   if (!evaluacion.ok) {
     return {
-      response: apiError(
-        422,
-        evaluacion.noCabe ? "NO_CABE" : "VALIDACION",
-        evaluacion.noCabe ? evaluacion.mensaje : "Revisa los datos marcados",
-        { [evaluacion.campo]: evaluacion.mensaje },
-      ),
+      response: apiError(422, "VALIDACION", "Revisa los datos marcados", {
+        [evaluacion.campo]: evaluacion.mensaje,
+      }),
     };
   }
 
   return {
-    item: {
-      ...data,
-      anchoCm: evaluacion.anchoCm,
-      altoCm: evaluacion.altoCm,
-      presupuesto: evaluacion.presupuesto,
-      problema: null,
-    },
+    linea: { ...evaluacion.linea, archivoId: data.archivoId, descripcion: data.descripcion, problema: null },
   };
 }
 
-/** Respuesta común de los endpoints de pedidos: el pedido y los archivos de sus ítems. */
+/** Respuesta común de los endpoints de pedidos: el pedido y los archivos de sus líneas. */
 export async function respuestaPedido(pedido: Pedido, status = 200): Promise<NextResponse> {
   return NextResponse.json({ pedido, archivos: await archivosDe(pedido) }, { status });
 }
@@ -157,8 +157,8 @@ export class ItemsConProblemasError extends Error {
  * dentro del lock de `confirmar`: lo que queda en el pedido son los precios
  * congelados.
  */
-export function prepararConfirmacion(pedido: Pedido, catalogo: Catalogo): void {
-  recalcularBorrador(pedido, catalogo);
-  if (pedido.items.length === 0) throw new PedidoVacioError();
-  if (pedido.items.some((item) => item.problema !== null)) throw new ItemsConProblemasError();
+export function prepararConfirmacion(pedido: Pedido, productos: Producto[]): void {
+  recalcularBorrador(pedido, productos);
+  if (pedido.productos.length === 0) throw new PedidoVacioError();
+  if (pedido.productos.some((linea) => linea.problema !== null)) throw new ItemsConProblemasError();
 }

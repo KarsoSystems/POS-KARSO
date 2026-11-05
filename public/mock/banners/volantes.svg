@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 500" width="1600" height="500" role="img" aria-label="Volantes para tu negocio">
+  <defs><linearGradient id="f" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b0f14"/><stop offset="1" stop-color="#0f2a3a"/></linearGradient></defs>
+  <rect width="1600" height="500" fill="url(#f)"/>
+  <rect x="0" y="0" width="1600" height="10" fill="#f5b83d"/>
+  <text x="90" y="170" font-family="Montserrat, Arial, sans-serif" font-size="64" font-weight="700" fill="#e9edf0"><tspan x="90" dy="0">Volantes para</tspan><tspan x="90" dy="76">tu negocio</tspan></text>
+       <text x="90" y="342" font-family="Montserrat, Arial, sans-serif" font-size="32" fill="#9aa7b1">Couché 128 g o bond 90 g</text>
+       <rect x="90" y="380" width="240" height="64" rx="10" fill="#f5b83d"/><text x="210" y="422" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="28" font-weight="700" fill="#0b0f14">Cotizar</text>
+       <g transform="translate(1080 40) scale(4.2)"><rect x="26" y="12" width="48" height="66" rx="3" fill="#e9edf0"/><rect x="32" y="20" width="36" height="24" rx="2" fill="#f5b83d"/><rect x="32" y="50" width="36" height="4" rx="2" fill="#9aa7b1"/><rect x="32" y="58" width="28" height="4" rx="2" fill="#9aa7b1"/><rect x="20" y="20" width="48" height="66" rx="3" fill="none" stroke="#f5b83d" stroke-width="2" opacity=".5"/></g>
+  <text x="1560" y="470" text-anchor="end" font-family="Montserrat, Arial, sans-serif" font-size="20" fill="#9aa7b1" opacity=".7">Imagen de ejemplo</text>
+</svg>

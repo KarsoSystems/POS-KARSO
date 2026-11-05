@@ -2,30 +2,42 @@ import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promi
 import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Rutas de datos, archivos y catálogo temporales antes de importar los módulos.
+// Rutas de datos, archivos y mock del panel temporales antes de importar los módulos.
 const env = vi.hoisted(() => {
   const base = `${process.env.TMPDIR ?? "/tmp"}/borrador-routes-${process.pid}`;
   process.env.DATA_DIR = `${base}/data`;
   process.env.UPLOADS_DIR = `${base}/uploads`;
-  process.env.CATALOGO_PATH = `${base}/catalogo.json`;
+  process.env.PRODUCTOS_PATH = `${base}/productos.json`;
   process.env.AUTH_SECRET = "x".repeat(32);
   return {
     base,
     dataDir: process.env.DATA_DIR,
     uploadsDir: process.env.UPLOADS_DIR,
-    catalogoPath: process.env.CATALOGO_PATH,
+    productosPath: process.env.PRODUCTOS_PATH,
   };
 });
 
 vi.mock("next/headers", () => import("@/test/next-headers-mock"));
 
 import { POST as subir } from "@/app/api/archivos/route";
+import type { ProductosArchivo } from "@/lib/catalogo/schema";
+import { PRODUCTOS_PATH } from "@/server/mock-panel";
+import { jar } from "@/test/next-headers-mock";
+import { iniciarSesionActiva } from "@/test/sesion";
 import { GET as getBorrador } from "./borrador/route";
 import { POST as agregar } from "./borrador/items/route";
 import { DELETE as quitar, PUT as editar } from "./borrador/items/[itemId]/route";
-import { CATALOGO_PATH } from "@/server/catalogo";
-import { jar } from "@/test/next-headers-mock";
-import { iniciarSesionActiva } from "@/test/sesion";
+
+// Ids del mock del panel (config/mock-panel/productos.json).
+const TARJETA = "6720a1f0c1a2b3c4d5e60201";
+const TARJETA_COUCHE = "6720a1f0c1a2b3c4d5e60211";
+const CREDENCIAL_PVC = "6720a1f0c1a2b3c4d5e60218";
+const LONA = "6720a1f0c1a2b3c4d5e60202";
+const LONA_720 = "6720a1f0c1a2b3c4d5e60221";
+const LONA_URGENTE = "6720a1f0c1a2b3c4d5e60222";
+const SUAJE = 2;
+const FOLIADO = 3;
+const OJILLOS = 5;
 
 const json = (method: string, body: unknown) =>
   new Request("http://localhost/api/pedidos/borrador/items", {
@@ -33,43 +45,52 @@ const json = (method: string, body: unknown) =>
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-const itemCtx = (itemId: string) => ({ params: Promise.resolve({ itemId }) });
+const lineaCtx = (itemId: string) => ({ params: Promise.resolve({ itemId }) });
 
-async function subirArchivo(nombre = "volante.jpg"): Promise<string> {
+async function subirArchivo(nombre = "tarjeta.jpg"): Promise<string> {
   const form = new FormData();
   form.append("archivo", new File(["imagen"], nombre));
   const res = await subir(new Request("http://localhost/api/archivos", { method: "POST", body: form }));
   return (await res.json()).archivo.id;
 }
 
-const volante = (archivoId: string, cambios: Record<string, unknown> = {}) => ({
+/** Tarjeta couché × 2 millares con suaje: $310.00. */
+const tarjeta = (archivoId: string, cambios: Record<string, unknown> = {}) => ({
   archivoId,
-  productoId: "volante",
-  tamano: { tipo: "predefinido", tamanoId: "media-carta" },
-  papelId: "couche-150",
-  hojaId: "tabloide",
-  cantidad: 1000,
+  productoId: TARJETA,
+  varianteId: TARJETA_COUCHE,
+  especificaciones: [SUAJE],
+  cantidad: 2,
+  ...cambios,
+});
+
+/** Lona 720 dpi de 2.00 × 1.50 m × 2 con ojillos: $414.00. */
+const lona = (archivoId: string, cambios: Record<string, unknown> = {}) => ({
+  archivoId,
+  productoId: LONA,
+  varianteId: LONA_720,
+  medida: { ancho: 2, alto: 1.5 },
+  especificaciones: [OJILLOS],
+  cantidad: 2,
   ...cambios,
 });
 
 const readJson = async (file: string) => JSON.parse(await readFile(path.join(env.dataDir, file), "utf8"));
 const enUploads = async () => readdir(env.uploadsDir).catch(() => []);
 
-interface CatalogoEditable {
-  papeles: { precioHojaCentavos: Record<string, number> }[];
-  productos: { papelesIds: string[] }[];
+async function editarProductos(cambiar: (archivo: ProductosArchivo) => void) {
+  const archivo = JSON.parse(await readFile(env.productosPath, "utf8"));
+  cambiar(archivo);
+  await writeFile(env.productosPath, JSON.stringify(archivo));
 }
-
-async function editarCatalogo(cambiar: (catalogo: CatalogoEditable) => void) {
-  const catalogo = JSON.parse(await readFile(env.catalogoPath, "utf8"));
-  cambiar(catalogo);
-  await writeFile(env.catalogoPath, JSON.stringify(catalogo));
-}
+const producto = (archivo: ProductosArchivo, id: string) => archivo.productos.find((p) => p._id === id)!;
+const variante = (archivo: ProductosArchivo, productoId: string, varianteId: string) =>
+  producto(archivo, productoId).variantes.find((v) => v.varianteId === varianteId)!;
 
 beforeEach(async () => {
   await rm(env.base, { recursive: true, force: true });
   await mkdir(env.base, { recursive: true });
-  await copyFile(CATALOGO_PATH, env.catalogoPath);
+  await copyFile(PRODUCTOS_PATH, env.productosPath);
   jar.clear();
 });
 
@@ -82,14 +103,19 @@ describe("GET /api/pedidos/borrador", () => {
     expect((await getBorrador()).status).toBe(401);
   });
 
-  it("crea el borrador vacío la primera vez y devuelve el mismo después", async () => {
+  it("crea el borrador vacío la primera vez, sin IVA, y devuelve el mismo después", async () => {
     await iniciarSesionActiva();
     const primero = (await (await getBorrador()).json()).pedido;
     expect(primero).toMatchObject({
       estado: "borrador",
       folio: null,
-      items: [],
-      totales: { subtotalCentavos: 0, ivaCentavos: 0, totalCentavos: 0, tasaIva: 0.16 },
+      productos: [],
+      subtotal: 0,
+      descuento: 0,
+      baseIva: 0,
+      tasaIva: 0,
+      iva: 0,
+      total: 0,
     });
     const segundo = (await (await getBorrador()).json()).pedido;
     expect(segundo.id).toBe(primero.id);
@@ -98,126 +124,164 @@ describe("GET /api/pedidos/borrador", () => {
 
   it("recalcula con el catálogo vigente y lo guarda en orders.json", async () => {
     await iniciarSesionActiva();
-    await agregar(json("POST", volante(await subirArchivo())));
-    await editarCatalogo((c) => {
-      c.papeles[1].precioHojaCentavos.tabloide = 600;
+    await agregar(json("POST", tarjeta(await subirArchivo())));
+    await editarProductos((a) => {
+      variante(a, TARJETA, TARJETA_COUCHE).precio = 120;
     });
 
     const { pedido } = await (await getBorrador()).json();
-    expect(pedido.items[0].presupuesto.subtotalCentavos).toBe(300_000);
-    expect(pedido.totales).toMatchObject({ subtotalCentavos: 300_000, ivaCentavos: 48_000 });
-    expect((await readJson("orders.json")).pedidos[0].totales.subtotalCentavos).toBe(300_000);
+    expect(pedido.productos[0]).toMatchObject({ precioBase: 120, importeUnitario: 160, subtotal: 320 });
+    expect(pedido).toMatchObject({ subtotal: 320, total: 320 });
+    expect((await readJson("orders.json")).pedidos[0].total).toBe(320);
   });
 
-  it("marca problema si el catálogo deja de tener el papel o el producto", async () => {
+  it("marca problema si la variante se desactiva, pasa a solo mostrador o el producto desaparece", async () => {
     await iniciarSesionActiva();
-    await agregar(json("POST", volante(await subirArchivo())));
+    await agregar(json("POST", tarjeta(await subirArchivo())));
 
-    await editarCatalogo((c) => {
-      c.productos[0].papelesIds = ["bond-90"];
-      c.productos[1].papelesIds = ["couche-300"];
-      c.papeles.splice(1, 1); // sin couché 150
+    await editarProductos((a) => {
+      variante(a, TARJETA, TARJETA_COUCHE).activa = false;
     });
     let { pedido } = await (await getBorrador()).json();
-    expect(pedido.items[0].problema).toBe("El papel ya no existe en el catálogo");
-    // Conserva el último presupuesto válido.
-    expect(pedido.items[0].presupuesto.subtotalCentavos).toBe(250_000);
+    expect(pedido.productos[0].problema).toBe("Couché 8.7 x 5 cm ya no está disponible");
+    // Conserva el último importe válido.
+    expect(pedido.productos[0].subtotal).toBe(310);
 
-    await editarCatalogo((c) => {
-      c.productos.splice(0, 1); // sin volante
+    await editarProductos((a) => {
+      const v = variante(a, TARJETA, TARJETA_COUCHE);
+      v.activa = true;
+      v.canales = ["mostrador"];
     });
     ({ pedido } = await (await getBorrador()).json());
-    expect(pedido.items[0].problema).toBe("El producto ya no existe en el catálogo");
+    expect(pedido.productos[0].problema).toBe("Couché 8.7 x 5 cm solo se vende en mostrador");
+
+    await editarProductos((a) => {
+      a.productos = a.productos.filter((p) => p._id !== TARJETA);
+    });
+    ({ pedido } = await (await getBorrador()).json());
+    expect(pedido.productos[0].problema).toBe("El producto ya no existe en el catálogo");
   });
 
-  it("con un catálogo inválido responde 500 y el log indica el campo", async () => {
+  it("marca problema si la medida queda fuera de rango y lo quita al volver", async () => {
+    await iniciarSesionActiva();
+    await agregar(json("POST", lona(await subirArchivo())));
+    await editarProductos((a) => {
+      variante(a, LONA, LONA_720).medida.ancho.max = 1.5;
+    });
+    let { pedido } = await (await getBorrador()).json();
+    expect(pedido.productos[0].problema).toBe("El ancho debe estar entre 0.50 y 1.50 m");
+
+    await copyFile(PRODUCTOS_PATH, env.productosPath);
+    ({ pedido } = await (await getBorrador()).json());
+    expect(pedido.productos[0].problema).toBeNull();
+  });
+
+  it("con un mock inválido responde 500 y el log indica el campo", async () => {
     await iniciarSesionActiva();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    await editarCatalogo((c) => {
-      c.productos[0].papelesIds.push("fantasma");
+    await editarProductos((a) => {
+      a.productos[0].variantes[1].sku = a.productos[0].variantes[0].sku;
     });
     const res = await getBorrador();
     expect(res.status).toBe(500);
     expect((await res.json()).error.code).toBe("CATALOGO_INVALIDO");
-    expect(errorSpy.mock.calls[0].join(" ")).toMatch(/productos\.0\.papelesIds\.2/);
+    expect(errorSpy.mock.calls[0].join(" ")).toMatch(/productos\.0\.variantes\.1\.sku/);
     errorSpy.mockRestore();
+  });
+
+  it("un orders.json de la SPEC 02 (versión 1) se descarta sin romper", async () => {
+    await iniciarSesionActiva();
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await mkdir(env.dataDir, { recursive: true });
+    await writeFile(
+      path.join(env.dataDir, "orders.json"),
+      JSON.stringify({ version: 1, ultimoFolio: 4, pedidos: [{ id: "viejo", items: [], totales: {} }] }),
+    );
+    const res = await getBorrador();
+    expect(res.status).toBe(200);
+    expect((await res.json()).pedido.productos).toEqual([]);
+    expect(await readJson("orders.json")).toMatchObject({ version: 2, ultimoFolio: 0 });
+    aviso.mockRestore();
   });
 });
 
 describe("POST /api/pedidos/borrador/items", () => {
-  it("un ítem válido → 201 con presupuesto calculado en el servidor, también en orders.json", async () => {
+  it("una línea válida → 201 con la copia de la variante y la cotización del servidor", async () => {
     await iniciarSesionActiva();
-    const archivoId = await subirArchivo("perro.png");
-    const res = await agregar(json("POST", { ...volante(archivoId), presupuesto: { hojas: 1 } }));
+    const archivoId = await subirArchivo("tarjeta.png");
+    // Un importe mandado por el cliente se ignora: el servidor calcula.
+    const res = await agregar(json("POST", { ...tarjeta(archivoId), subtotal: 1 }));
     expect(res.status).toBe(201);
 
     const { pedido, archivos } = await res.json();
-    expect(pedido.items).toHaveLength(1);
-    expect(pedido.items[0]).toMatchObject({
+    expect(pedido.productos).toHaveLength(1);
+    expect(pedido.productos[0]).toMatchObject({
       archivoId,
       descripcion: "",
-      anchoCm: 14,
-      altoCm: 21.6,
+      productoId: TARJETA,
+      varianteId: TARJETA_COUCHE,
+      sku: "70000177",
+      nombre: "Tarjeta",
+      variante: "Couché 8.7 x 5 cm",
+      atributos: { presentacion: "Couché", acabadoBase: "Barniz UV" },
+      grupoArmado: "Tarjetas Couché",
+      volumen: "millar",
+      precioBase: 115,
+      cantidad: 2,
+      medida: { tipo: "fija", unidad: "cm", ancho: 8.7, alto: 5, area: null },
+      especificaciones: [{ id: SUAJE, nombre: "Suaje", unidades: 1, importeUnitario: 40 }],
+      importeBaseUnitario: 115,
+      importeEspecificacionesUnitario: 40,
+      importeUnitario: 155,
+      subtotal: 310,
       problema: null,
-      presupuesto: {
-        acomodo: { piezasPorHoja: 2, columnas: 1, filas: 2, rotada: true },
-        hojas: 500,
-        precioHojaCentavos: 500,
-        subtotalCentavos: 250_000,
-      },
     });
-    expect(pedido.totales).toEqual({
-      subtotalCentavos: 250_000,
-      ivaCentavos: 40_000,
-      totalCentavos: 290_000,
-      tasaIva: 0.16,
-    });
-    expect(archivos[archivoId]).toMatchObject({ nombreOriginal: "perro.png", previsualizable: true });
-    expect((await readJson("orders.json")).pedidos[0].items[0].presupuesto.subtotalCentavos).toBe(250_000);
+    expect(pedido.productos[0].lineaId).toEqual(expect.any(String));
+    expect(pedido).toMatchObject({ subtotal: 310, descuento: 0, baseIva: 310, tasaIva: 0, iva: 0, total: 310 });
+    expect(archivos[archivoId]).toMatchObject({ nombreOriginal: "tarjeta.png", previsualizable: true });
+    expect((await readJson("orders.json")).pedidos[0].productos[0].subtotal).toBe(310);
   });
 
-  it("un cartel tabloide en hoja tabloide → 422 NO_CABE con la hoja alternativa", async () => {
+  it("tarjeta + lona con ojillos → subtotal y total $724.00", async () => {
     await iniciarSesionActiva();
-    const res = await agregar(
-      json("POST", {
-        archivoId: await subirArchivo(),
-        productoId: "cartel",
-        tamano: { tipo: "predefinido", tamanoId: "tabloide" },
-        papelId: "couche-300",
-        hojaId: "tabloide",
-        cantidad: 10,
-      }),
-    );
+    const archivoId = await subirArchivo();
+    await agregar(json("POST", tarjeta(archivoId)));
+    const res = await agregar(json("POST", lona(archivoId)));
+    const { pedido } = await res.json();
+    expect(pedido.productos[1]).toMatchObject({
+      medida: { tipo: "variable", unidad: "m", ancho: 2, alto: 1.5, area: 3 },
+      especificaciones: [{ nombre: "Ojillos", unidades: 14, importeUnitario: 42 }],
+      subtotal: 414,
+    });
+    expect(pedido).toMatchObject({ subtotal: 724, total: 724 });
+  });
+
+  it("una variante solo de mostrador → 422", async () => {
+    await iniciarSesionActiva();
+    const res = await agregar(json("POST", lona(await subirArchivo(), { varianteId: LONA_URGENTE })));
     expect(res.status).toBe(422);
-    expect((await res.json()).error).toEqual({
-      code: "NO_CABE",
-      message: "No cabe en Tabloide; sí cabe en Mesa",
-      fields: { hojaId: "No cabe en Tabloide; sí cabe en Mesa" },
-    });
-    expect((await readJson("orders.json").catch(() => ({ pedidos: [] }))).pedidos).toEqual([]);
+    expect((await res.json()).error.fields).toEqual({ varianteId: "Lona urgente 720 dpi solo se vende en mostrador" });
   });
 
-  it("un papel no permitido para el producto → 422", async () => {
+  it("una medida fuera de rango → 422 con el rango", async () => {
     await iniciarSesionActiva();
-    const res = await agregar(json("POST", volante(await subirArchivo(), { papelId: "couche-300" })));
+    const res = await agregar(json("POST", lona(await subirArchivo(), { medida: { ancho: 6, alto: 1.5 } })));
+    expect(res.status).toBe(422);
+    expect((await res.json()).error.fields).toEqual({ "medida.ancho": "El ancho debe estar entre 0.50 y 5.00 m" });
+  });
+
+  it("un acabado que no aplica a la variante → 422", async () => {
+    await iniciarSesionActiva();
+    const res = await agregar(json("POST", tarjeta(await subirArchivo(), { varianteId: CREDENCIAL_PVC })));
     expect(res.status).toBe(422);
     expect((await res.json()).error.fields).toEqual({
-      papelId: "El papel Couché 300 g no está disponible para Volante",
+      especificaciones: "El acabado Suaje no aplica a Credencial PVC 8.5 x 5.4 cm",
     });
-  });
-
-  it("un tamaño predefinido que no es del producto → 422", async () => {
-    await iniciarSesionActiva();
-    const res = await agregar(
-      json("POST", volante(await subirArchivo(), { tamano: { tipo: "predefinido", tamanoId: "estandar" } })),
-    );
-    expect(res.status).toBe(422);
-    expect((await res.json()).error.fields).toHaveProperty("tamano");
   });
 
   it("una cantidad fuera de rango → 422 de validación", async () => {
     await iniciarSesionActiva();
-    const res = await agregar(json("POST", volante(await subirArchivo(), { cantidad: 100_001 })));
+    const res = await agregar(json("POST", tarjeta(await subirArchivo(), { cantidad: 100_001 })));
     expect(res.status).toBe(422);
     expect((await res.json()).error.fields).toEqual({ cantidad: "La cantidad máxima es 100,000" });
   });
@@ -226,103 +290,108 @@ describe("POST /api/pedidos/borrador/items", () => {
     await iniciarSesionActiva("ana@ejemplo.com");
     const ajeno = await subirArchivo();
     await iniciarSesionActiva("beto@ejemplo.com");
-    const res = await agregar(json("POST", volante(ajeno)));
+    const res = await agregar(json("POST", tarjeta(ajeno)));
     expect(res.status).toBe(422);
     expect((await res.json()).error.fields).toEqual({ archivoId: "El archivo no existe" });
   });
 
-  it("el ítem 21 → 409 'Máximo 20 ítems por pedido'", async () => {
+  it("la línea 21 → 409 'Máximo 20 ítems por pedido'", async () => {
     await iniciarSesionActiva();
     const archivoId = await subirArchivo();
     for (let i = 0; i < 20; i++) {
-      expect((await agregar(json("POST", volante(archivoId)))).status).toBe(201);
+      expect((await agregar(json("POST", tarjeta(archivoId)))).status).toBe(201);
     }
-    const res = await agregar(json("POST", volante(archivoId)));
+    const res = await agregar(json("POST", tarjeta(archivoId)));
     expect(res.status).toBe(409);
     expect((await res.json()).error).toMatchObject({
       code: "MAXIMO_ITEMS",
       message: "Máximo 20 ítems por pedido",
     });
-    expect((await readJson("orders.json")).pedidos[0].items).toHaveLength(20);
+    expect((await readJson("orders.json")).pedidos[0].productos).toHaveLength(20);
   });
 });
 
 describe("PUT /api/pedidos/borrador/items/:itemId", () => {
-  it("cambiar hoja y cantidad recalcula el presupuesto", async () => {
+  it("cambiar cantidad y acabados recalcula la línea", async () => {
     await iniciarSesionActiva();
     const archivoId = await subirArchivo();
-    const { pedido } = await (await agregar(json("POST", volante(archivoId)))).json();
-    const itemId = pedido.items[0].id;
+    const { pedido } = await (await agregar(json("POST", tarjeta(archivoId)))).json();
+    const lineaId = pedido.productos[0].lineaId;
 
-    const res = await editar(json("PUT", volante(archivoId, { hojaId: "mesa", cantidad: 1001 })), itemCtx(itemId));
+    const res = await editar(
+      json("PUT", tarjeta(archivoId, { cantidad: 3, especificaciones: [FOLIADO] })),
+      lineaCtx(lineaId),
+    );
     expect(res.status).toBe(200);
     const editado = (await res.json()).pedido;
-    expect(editado.items).toHaveLength(1);
-    expect(editado.items[0]).toMatchObject({
-      id: itemId,
-      hojaId: "mesa",
-      cantidad: 1001,
-      presupuesto: { hojas: 251, precioHojaCentavos: 650, subtotalCentavos: 163_150 },
+    expect(editado.productos).toHaveLength(1);
+    expect(editado.productos[0]).toMatchObject({
+      lineaId,
+      cantidad: 3,
+      especificaciones: [{ nombre: "Foliado", importeUnitario: 80 }],
+      importeUnitario: 195,
+      subtotal: 585,
     });
+    expect(editado.total).toBe(585);
   });
 
-  it("un ítem inexistente → 404", async () => {
+  it("una línea inexistente → 404", async () => {
     await iniciarSesionActiva();
-    const res = await editar(json("PUT", volante(await subirArchivo())), itemCtx("no-existe"));
+    const res = await editar(json("PUT", tarjeta(await subirArchivo())), lineaCtx("no-existe"));
     expect(res.status).toBe(404);
   });
 
-  it("si no cabe → 422 y el ítem queda igual", async () => {
+  it("una edición inválida → 422 y la línea queda igual", async () => {
     await iniciarSesionActiva();
     const archivoId = await subirArchivo();
-    const { pedido } = await (await agregar(json("POST", volante(archivoId)))).json();
+    const { pedido } = await (await agregar(json("POST", lona(archivoId)))).json();
     const res = await editar(
-      json("PUT", volante(archivoId, { tamano: { tipo: "personalizado", anchoCm: 40, altoCm: 50 } })),
-      itemCtx(pedido.items[0].id),
+      json("PUT", lona(archivoId, { medida: { ancho: 2, alto: 11 } })),
+      lineaCtx(pedido.productos[0].lineaId),
     );
     expect(res.status).toBe(422);
-    expect((await readJson("orders.json")).pedidos[0].items[0].anchoCm).toBe(14);
+    expect((await readJson("orders.json")).pedidos[0].productos[0].medida.alto).toBe(1.5);
   });
 
   it("cambiar el archivo libera el anterior si nadie más lo usa", async () => {
     await iniciarSesionActiva();
     const viejo = await subirArchivo("viejo.jpg");
     const nuevo = await subirArchivo("nuevo.jpg");
-    const { pedido } = await (await agregar(json("POST", volante(viejo)))).json();
+    const { pedido } = await (await agregar(json("POST", tarjeta(viejo)))).json();
 
-    await editar(json("PUT", volante(nuevo)), itemCtx(pedido.items[0].id));
+    await editar(json("PUT", tarjeta(nuevo)), lineaCtx(pedido.productos[0].lineaId));
     expect(await enUploads()).toEqual([`${nuevo}.jpg`]);
   });
 });
 
 describe("DELETE /api/pedidos/borrador/items/:itemId", () => {
-  it("quita el ítem y borra su archivo de uploads/ y de archivos.json", async () => {
+  it("quita la línea y borra su archivo de uploads/ y de archivos.json", async () => {
     await iniciarSesionActiva();
     const archivoId = await subirArchivo();
-    const { pedido } = await (await agregar(json("POST", volante(archivoId)))).json();
+    const { pedido } = await (await agregar(json("POST", tarjeta(archivoId)))).json();
     expect(await enUploads()).toEqual([`${archivoId}.jpg`]);
 
-    const res = await quitar(new Request("http://localhost"), itemCtx(pedido.items[0].id));
+    const res = await quitar(new Request("http://localhost"), lineaCtx(pedido.productos[0].lineaId));
     expect(res.status).toBe(200);
     const { pedido: actualizado } = await res.json();
-    expect(actualizado.items).toEqual([]);
-    expect(actualizado.totales.totalCentavos).toBe(0);
+    expect(actualizado.productos).toEqual([]);
+    expect(actualizado.total).toBe(0);
     expect(await enUploads()).toEqual([]);
     expect((await readJson("archivos.json")).archivos).toEqual([]);
   });
 
-  it("no borra el archivo si otro ítem lo usa", async () => {
+  it("no borra el archivo si otra línea lo usa", async () => {
     await iniciarSesionActiva();
     const archivoId = await subirArchivo();
-    await agregar(json("POST", volante(archivoId)));
-    const { pedido } = await (await agregar(json("POST", volante(archivoId, { hojaId: "mesa" })))).json();
+    await agregar(json("POST", tarjeta(archivoId)));
+    const { pedido } = await (await agregar(json("POST", lona(archivoId)))).json();
 
-    await quitar(new Request("http://localhost"), itemCtx(pedido.items[0].id));
+    await quitar(new Request("http://localhost"), lineaCtx(pedido.productos[0].lineaId));
     expect(await enUploads()).toEqual([`${archivoId}.jpg`]);
   });
 
-  it("un ítem inexistente → 404", async () => {
+  it("una línea inexistente → 404", async () => {
     await iniciarSesionActiva();
-    expect((await quitar(new Request("http://localhost"), itemCtx("no-existe"))).status).toBe(404);
+    expect((await quitar(new Request("http://localhost"), lineaCtx("no-existe"))).status).toBe(404);
   });
 });

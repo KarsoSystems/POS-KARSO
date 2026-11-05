@@ -1,12 +1,12 @@
-import { itemSchema } from "@/lib/validation/pedidos";
+import { lineaSchema } from "@/lib/validation/pedidos";
 import { requireSessionUser } from "@/server/auth/guards";
-import { catalogoParaRuta } from "@/server/catalogo";
+import { productosParaRuta } from "@/server/tienda";
 import { apiError, parseBody } from "@/server/http/responses";
 import {
   cambiarBorrador,
   ItemNoEncontradoError,
   liberarArchivoSiNoSeUsa,
-  prepararItem,
+  prepararLinea,
   respuestaPedido,
 } from "@/server/pedidos/borrador";
 
@@ -19,25 +19,26 @@ export async function PUT(request: Request, { params }: Contexto) {
   if (guard.response) return guard.response;
 
   const { itemId } = await params;
-  const body = await parseBody(request, itemSchema);
+  const body = await parseBody(request, lineaSchema);
   if (body.response) return body.response;
 
-  const { catalogo, response } = await catalogoParaRuta();
+  const { archivo: mock, response } = await productosParaRuta();
   if (response) return response;
+  const { productos } = mock;
 
-  const preparado = await prepararItem(body.data, guard.user.id, catalogo);
+  const preparado = await prepararLinea(body.data, guard.user.id, productos);
   if (preparado.response) return preparado.response;
 
   let archivoAnterior: string | null = null;
   try {
-    const pedido = await cambiarBorrador(guard.user.id, catalogo, (borrador) => {
-      const index = borrador.items.findIndex((item) => item.id === itemId);
+    const pedido = await cambiarBorrador(guard.user.id, productos, (borrador) => {
+      const index = borrador.productos.findIndex((linea) => linea.lineaId === itemId);
       if (index === -1) throw new ItemNoEncontradoError(itemId);
-      archivoAnterior = borrador.items[index].archivoId;
-      borrador.items[index] = { id: itemId, ...preparado.item };
+      archivoAnterior = borrador.productos[index].archivoId;
+      borrador.productos[index] = { lineaId: itemId, ...preparado.linea };
     });
     // Si se cambió el archivo, el anterior se borra cuando ya nadie lo usa.
-    if (archivoAnterior && archivoAnterior !== preparado.item.archivoId) {
+    if (archivoAnterior && archivoAnterior !== preparado.linea.archivoId) {
       await liberarArchivoSiNoSeUsa(guard.user.id, archivoAnterior);
     }
     return respuestaPedido(pedido);
@@ -52,16 +53,17 @@ export async function DELETE(_request: Request, { params }: Contexto) {
   if (guard.response) return guard.response;
 
   const { itemId } = await params;
-  const { catalogo, response } = await catalogoParaRuta();
+  const { archivo: mock, response } = await productosParaRuta();
   if (response) return response;
+  const { productos } = mock;
 
   let archivoId: string | null = null;
   try {
-    const pedido = await cambiarBorrador(guard.user.id, catalogo, (borrador) => {
-      const item = borrador.items.find((i) => i.id === itemId);
-      if (!item) throw new ItemNoEncontradoError(itemId);
-      archivoId = item.archivoId;
-      borrador.items = borrador.items.filter((i) => i.id !== itemId);
+    const pedido = await cambiarBorrador(guard.user.id, productos, (borrador) => {
+      const linea = borrador.productos.find((l) => l.lineaId === itemId);
+      if (!linea) throw new ItemNoEncontradoError(itemId);
+      archivoId = linea.archivoId;
+      borrador.productos = borrador.productos.filter((l) => l.lineaId !== itemId);
     });
     if (archivoId) await liberarArchivoSiNoSeUsa(guard.user.id, archivoId);
     return respuestaPedido(pedido);

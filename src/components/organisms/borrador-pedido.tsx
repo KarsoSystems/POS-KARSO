@@ -22,10 +22,9 @@ import {
 import { Skeleton } from "@/components/atoms/skeleton";
 import { ApiError } from "@/lib/api-client";
 import { MAX_ITEMS_POR_PEDIDO } from "@/lib/validation/pedidos";
-import { etiquetasItem } from "@/lib/pedidos/formato";
-import { useCatalogo } from "@/hooks/use-catalogo";
+import { useProductos } from "@/hooks/use-productos";
 import { useBorrador, useConfirmarPedido, useQuitarItem } from "@/hooks/use-pedidos";
-import type { Subpedido } from "@/lib/pedidos-api";
+import type { LineaPedido } from "@/lib/pedidos-api";
 
 const mensajeDe = (error: unknown, porDefecto: string) => (error instanceof ApiError ? error.message : porDefecto);
 
@@ -52,7 +51,7 @@ function AvisoPedidoVacio({ open, onOpenChange }: { open: boolean; onOpenChange:
 }
 
 interface ConfirmarQuitarProps {
-  item: Subpedido | null;
+  item: LineaPedido | null;
   descripcion: string;
   quitando: boolean;
   onConfirmar: () => void;
@@ -87,16 +86,16 @@ function ConfirmarQuitar({ item, descripcion, quitando, onConfirmar, onCancelar 
 export function BorradorPedido() {
   const router = useRouter();
   const borrador = useBorrador();
-  const { data: catalogo, error: errorCatalogo } = useCatalogo();
+  const { data: tienda, error: errorProductos } = useProductos();
   const quitarItem = useQuitarItem();
   const confirmarPedido = useConfirmarPedido();
   const [errorAccion, setErrorAccion] = useState<string>();
-  const [porQuitar, setPorQuitar] = useState<Subpedido | null>(null);
+  const [porQuitar, setPorQuitar] = useState<LineaPedido | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [avisoVacio, setAvisoVacio] = useState(false);
 
   const datos = borrador.data;
-  const errorCarga = borrador.error ?? errorCatalogo;
+  const errorCarga = borrador.error ?? errorProductos;
   const error = errorAccion ?? (errorCarga ? mensajeDe(errorCarga, "No se pudo cargar tu pedido") : undefined);
   const quitando = quitarItem.isPending;
 
@@ -104,7 +103,7 @@ export function BorradorPedido() {
     if (!porQuitar) return;
     setErrorAccion(undefined);
     try {
-      await quitarItem.mutateAsync(porQuitar.id);
+      await quitarItem.mutateAsync(porQuitar.lineaId);
     } catch (e) {
       setErrorAccion(mensajeDe(e, "No se pudo quitar el ítem"));
     } finally {
@@ -113,7 +112,7 @@ export function BorradorPedido() {
   }
 
   async function hacerPedido() {
-    if (!datos || datos.pedido.items.length === 0) return setAvisoVacio(true);
+    if (!datos || datos.pedido.productos.length === 0) return setAvisoVacio(true);
     setConfirmando(true);
     setErrorAccion(undefined);
     try {
@@ -128,7 +127,7 @@ export function BorradorPedido() {
     }
   }
 
-  const items = datos?.pedido.items ?? [];
+  const items = datos?.pedido.productos ?? [];
   const lleno = items.length >= MAX_ITEMS_POR_PEDIDO;
   const conProblemas = items.some((item) => item.problema);
 
@@ -152,20 +151,20 @@ export function BorradorPedido() {
           ))}
       </div>
 
-      <AvisoPreciosEjemplo ejemplo={catalogo?.ejemplo} />
+      <AvisoPreciosEjemplo ejemplo={tienda?.ejemplo} />
       <FormError message={error} />
       {lleno && (
         <p className="text-sm text-muted-foreground">Máximo {MAX_ITEMS_POR_PEDIDO} ítems por pedido.</p>
       )}
 
-      {(!datos || !catalogo) && !error && (
+      {!datos && !error && (
         <div className="space-y-3" aria-busy="true" aria-label="Cargando">
           <Skeleton className="h-36 w-full" />
           <Skeleton className="h-24 w-full" />
         </div>
       )}
 
-      {datos && catalogo && (
+      {datos && (
         <div className="grid gap-6 lg:grid-cols-[1fr_18rem] lg:items-start">
           <section aria-label="Ítems del pedido">
             {items.length === 0 ? (
@@ -181,15 +180,14 @@ export function BorradorPedido() {
               <ul className="space-y-3">
                 {items.map((item) => (
                   <ItemResumen
-                    key={item.id}
-                    item={item}
+                    key={item.lineaId}
+                    linea={item}
                     archivo={datos.archivos[item.archivoId]}
-                    catalogo={catalogo}
                     className="border-2 border-dashed"
                     acciones={
                       <>
                         <Button variant="ghost" size="icon" asChild>
-                          <Link href={`/panel/pedidos/nuevo/item/${item.id}`} aria-label="Editar ítem">
+                          <Link href={`/panel/pedidos/nuevo/item/${item.lineaId}`} aria-label="Editar ítem">
                             <Pencil aria-hidden />
                           </Link>
                         </Button>
@@ -218,7 +216,7 @@ export function BorradorPedido() {
               <CardTitle className="text-base">Resumen</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <TotalesPedido totales={datos.pedido.totales} />
+              <TotalesPedido totales={datos.pedido} />
               {conProblemas && (
                 <p className="text-sm text-destructive">Corrige los ítems marcados antes de hacer el pedido.</p>
               )}
@@ -236,8 +234,8 @@ export function BorradorPedido() {
       <ConfirmarQuitar
         item={porQuitar}
         descripcion={
-          porQuitar && catalogo && datos
-            ? `${etiquetasItem(catalogo, porQuitar).producto} (${datos.archivos[porQuitar.archivoId]?.nombreOriginal ?? "sin archivo"})`
+          porQuitar && datos
+            ? `${porQuitar.nombre} (${datos.archivos[porQuitar.archivoId]?.nombreOriginal ?? "sin archivo"})`
             : "el ítem"
         }
         quitando={quitando}

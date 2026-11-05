@@ -1,6 +1,6 @@
 # SPEC 04 — Catálogo y cotización KARSO
 
-> **Estado:** Approved
+> **Estado:** Implemented
 > **Depende de:** SPEC 01, SPEC 02, SPEC 03
 > **Fecha:** 2026-11-05
 > **Objetivo:** Reemplazar el precio por hoja de la SPEC 02 por el catálogo de KARSO (productos con variantes, atributos, medidas y especificaciones, simulados como si vinieran del panel) y el cálculo de la sección 5.4 de `KARSO-PROMPT-v1.md`, y mostrar en el inicio del panel los banners simulados.

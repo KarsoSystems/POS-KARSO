@@ -43,10 +43,19 @@ async function withLock<R>(key: string, task: () => Promise<R>): Promise<R> {
   }
 }
 
+export interface JsonStoreOptions {
+  /**
+   * Si el archivo trae otra versión: `"error"` (por defecto) lanza; `"descartar"`
+   * lo reemplaza por el valor inicial y deja un aviso en el log (datos de demo).
+   */
+  versionDistinta?: "error" | "descartar";
+}
+
 export function createJsonStore<T extends VersionedFile>(
   fileName: string,
   initial: T,
   dataDir: string = resolveDataDir(),
+  { versionDistinta = "error" }: JsonStoreOptions = {},
 ): JsonStore<T> {
   const filePath = path.resolve(dataDir, fileName);
 
@@ -62,18 +71,26 @@ export function createJsonStore<T extends VersionedFile>(
     }
   }
 
+  async function fresh(): Promise<T> {
+    const data = structuredClone(initial);
+    await writeAtomic(data);
+    return data;
+  }
+
   async function load(): Promise<T> {
     let raw: string;
     try {
       raw = await readFile(filePath, "utf8");
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      const fresh = structuredClone(initial);
-      await writeAtomic(fresh);
-      return fresh;
+      return fresh();
     }
     const data = JSON.parse(raw) as T;
     if (data.version !== initial.version) {
+      if (versionDistinta === "descartar") {
+        console.warn(`[json-store] ${fileName}: versión ${data.version} descartada; se reinicia en la versión ${initial.version}`);
+        return fresh();
+      }
       throw new Error(
         `${fileName}: versión ${data.version} no soportada (se esperaba ${initial.version})`,
       );

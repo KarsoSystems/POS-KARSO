@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="200" height="200" role="img" aria-label="tarjeta">
+  <defs><linearGradient id="f" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b0f14"/><stop offset="1" stop-color="#0f2a3a"/></linearGradient></defs>
+  <rect width="100" height="100" fill="url(#f)"/><g><rect x="14" y="30" width="72" height="42" rx="4" fill="#f5b83d"/><rect x="22" y="40" width="30" height="5" rx="2" fill="#0b0f14"/><rect x="22" y="50" width="44" height="4" rx="2" fill="#0b0f14" opacity=".6"/><rect x="22" y="58" width="36" height="4" rx="2" fill="#0b0f14" opacity=".6"/></g></svg>

@@ -1,8 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
-import { CATALOGO_ORIGINAL, CATALOGO_PATH, DATA_DIR, E2E_DIR, UPLOADS_DIR } from "./e2e/rutas";
+import {
+  BANNERS_ORIGINAL,
+  BANNERS_PATH,
+  DATA_DIR,
+  E2E_DIR,
+  PRODUCTOS_ORIGINAL,
+  PRODUCTOS_PATH,
+  UPLOADS_DIR,
+} from "./e2e/rutas";
 
 const PORT = 3100;
-// Datos, archivos subidos y catálogo del e2e en una carpeta temporal; se
+// Datos, archivos subidos y mock del panel del e2e en una carpeta temporal; se
 // recrea cada vez que arranca el servidor.
 
 export default defineConfig({
@@ -22,7 +30,7 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `rm -rf "${E2E_DIR}" && mkdir -p "${E2E_DIR}" && cp "${CATALOGO_ORIGINAL}" "${CATALOGO_PATH}" && pnpm dev --port ${PORT}`,
+    command: `rm -rf "${E2E_DIR}" && mkdir -p "${E2E_DIR}" && cp "${PRODUCTOS_ORIGINAL}" "${PRODUCTOS_PATH}" && cp "${BANNERS_ORIGINAL}" "${BANNERS_PATH}" && pnpm dev --port ${PORT}`,
     url: `http://localhost:${PORT}/login`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
@@ -31,7 +39,8 @@ export default defineConfig({
       AUTH_SECRET: "e2e-secret-solo-para-pruebas-0123456789",
       DATA_DIR,
       UPLOADS_DIR,
-      CATALOGO_PATH,
+      PRODUCTOS_PATH,
+      BANNERS_PATH,
     },
   },
 });

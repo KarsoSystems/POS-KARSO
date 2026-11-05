@@ -5,7 +5,7 @@ import { formatearFecha, formatearMxn } from "@/lib/pedidos/formato";
 import type { Pedido } from "@/lib/pedidos-api";
 
 export function FilaPedido({ pedido }: { pedido: Pedido }) {
-  const items = pedido.items.length;
+  const items = pedido.productos.length;
   return (
     <li>
       <Link
@@ -21,7 +21,7 @@ export function FilaPedido({ pedido }: { pedido: Pedido }) {
             {formatearFecha(pedido.confirmadoAt ?? pedido.createdAt)} · {items} {items === 1 ? "ítem" : "ítems"}
           </p>
         </div>
-        <span className="font-medium text-acento-texto tabular-nums">{formatearMxn(pedido.totales.totalCentavos)}</span>
+        <span className="font-medium text-acento-texto tabular-nums">{formatearMxn(pedido.total)}</span>
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       </Link>
     </li>

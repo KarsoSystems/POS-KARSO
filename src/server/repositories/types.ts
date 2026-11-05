@@ -40,7 +40,7 @@ export interface PedidoRepository {
   /** El borrador del usuario o null. Hay a lo más uno por usuario. */
   findBorrador(userId: string): Promise<Pedido | null>;
   /** Crea el borrador vacío del usuario; si ya existe, devuelve ese. */
-  crearBorrador(userId: string, tasaIva: number): Promise<Pedido>;
+  crearBorrador(userId: string): Promise<Pedido>;
   findById(id: string): Promise<Pedido | null>;
   /** Pedidos del usuario sin el borrador, recientes primero. */
   listByUser(userId: string): Promise<Pedido[]>;

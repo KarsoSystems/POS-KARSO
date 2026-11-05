@@ -1,5 +1,5 @@
 import { requireSessionUser } from "@/server/auth/guards";
-import { catalogoParaRuta } from "@/server/catalogo";
+import { productosParaRuta } from "@/server/tienda";
 import { apiError } from "@/server/http/responses";
 import {
   ItemsConProblemasError,
@@ -14,8 +14,9 @@ export async function POST() {
   const guard = await requireSessionUser("activo");
   if (guard.response) return guard.response;
 
-  const { catalogo, response } = await catalogoParaRuta();
+  const { archivo: mock, response } = await productosParaRuta();
   if (response) return response;
+  const { productos } = mock;
 
   const vacio = () => apiError(422, "PEDIDO_VACIO", new PedidoVacioError().message);
   const borrador = await pedidoRepository.findBorrador(guard.user.id);
@@ -23,7 +24,7 @@ export async function POST() {
 
   try {
     const pedido = await pedidoRepository.confirmar(borrador.id, (p) =>
-      prepararConfirmacion(p, catalogo),
+      prepararConfirmacion(p, productos),
     );
     return respuestaPedido(pedido, 201);
   } catch (error) {

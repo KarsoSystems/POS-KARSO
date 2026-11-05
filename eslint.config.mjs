@@ -10,7 +10,15 @@ const compat = new FlatCompat({
 });
 
 // Atomic design: cada nivel solo importa de los niveles de abajo.
-const HOOKS_DE_DATOS = ["use-auth", "use-catalogo", "use-pedidos", "use-subir-archivo", "use-editor-item", "query-keys"];
+const HOOKS_DE_DATOS = [
+  "use-auth",
+  "use-productos",
+  "use-banners",
+  "use-pedidos",
+  "use-subir-archivo",
+  "use-editor-item",
+  "query-keys",
+];
 
 function soloNivelesDeAbajo(nivel, prohibidos, { hooksDeDatos = false } = {}) {
   const patterns = [
@@ -54,7 +62,7 @@ const eslintConfig = [
       "@typescript-eslint/no-restricted-imports": [
         "error",
         {
-          paths: ["@/lib/auth-api", "@/lib/pedidos-api"].map((name) => ({
+          paths: ["@/lib/auth-api", "@/lib/pedidos-api", "@/lib/tienda-api"].map((name) => ({
             name,
             allowTypeImports: true,
             message: "Pide los datos con los hooks de src/hooks (React Query), no con la API directamente.",

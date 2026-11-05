@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { itemSchema, MAX_ITEMS_POR_PEDIDO } from "@/lib/validation/pedidos";
+import { lineaSchema, MAX_ITEMS_POR_PEDIDO } from "@/lib/validation/pedidos";
 import { requireSessionUser } from "@/server/auth/guards";
-import { catalogoParaRuta } from "@/server/catalogo";
+import { productosParaRuta } from "@/server/tienda";
 import { apiError, parseBody } from "@/server/http/responses";
 import {
   cambiarBorrador,
   MaximoItemsError,
-  prepararItem,
+  prepararLinea,
   respuestaPedido,
 } from "@/server/pedidos/borrador";
 
@@ -14,20 +14,21 @@ export async function POST(request: Request) {
   const guard = await requireSessionUser("activo");
   if (guard.response) return guard.response;
 
-  const body = await parseBody(request, itemSchema);
+  const body = await parseBody(request, lineaSchema);
   if (body.response) return body.response;
 
-  const { catalogo, response } = await catalogoParaRuta();
+  const { archivo: mock, response } = await productosParaRuta();
   if (response) return response;
+  const { productos } = mock;
 
-  const preparado = await prepararItem(body.data, guard.user.id, catalogo);
+  const preparado = await prepararLinea(body.data, guard.user.id, productos);
   if (preparado.response) return preparado.response;
 
   try {
-    const pedido = await cambiarBorrador(guard.user.id, catalogo, (borrador) => {
+    const pedido = await cambiarBorrador(guard.user.id, productos, (borrador) => {
       // Se revisa bajo el lock: dos pestañas no pueden pasar de 20 a la vez.
-      if (borrador.items.length >= MAX_ITEMS_POR_PEDIDO) throw new MaximoItemsError();
-      borrador.items.push({ id: randomUUID(), ...preparado.item });
+      if (borrador.productos.length >= MAX_ITEMS_POR_PEDIDO) throw new MaximoItemsError();
+      borrador.productos.push({ lineaId: randomUUID(), ...preparado.linea });
     });
     return respuestaPedido(pedido, 201);
   } catch (error) {

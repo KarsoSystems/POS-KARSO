@@ -1,6 +1,7 @@
 export const queryKeys = {
   sesion: ["sesion"],
-  catalogo: ["catalogo"],
+  productos: ["tienda", "productos"],
+  banners: ["tienda", "banners"],
   borrador: ["pedidos", "borrador"],
   pedidos: ["pedidos", "lista"],
   pedido: (id: string) => ["pedidos", "detalle", id],

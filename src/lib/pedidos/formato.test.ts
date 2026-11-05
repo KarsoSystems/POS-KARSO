@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { etiquetasItem, formatearCm, formatearMxn, formatearNumero } from "./formato";
+import {
+  formatearCm,
+  formatearMxn,
+  formatearNumero,
+  textoCantidad,
+  textoMedida,
+  textoPrecioVariante,
+  unidadCantidad,
+} from "./formato";
 
 describe("formato", () => {
-  it("dinero en MXN desde centavos", () => {
-    expect(formatearMxn(250_000)).toBe("$2,500.00");
-    expect(formatearMxn(40_000)).toBe("$400.00");
-    expect(formatearMxn(5)).toBe("$0.05");
+  it("dinero en MXN desde pesos", () => {
+    expect(formatearMxn(2500)).toBe("$2,500.00");
+    expect(formatearMxn(755.86)).toBe("$755.86");
+    expect(formatearMxn(0.05)).toBe("$0.05");
     expect(formatearMxn(0)).toBe("$0.00");
   });
 
@@ -21,40 +29,39 @@ describe("formato", () => {
   });
 });
 
-describe("etiquetasItem", () => {
-  const catalogo = {
-    hojas: [{ id: "mesa", nombre: "Mesa", anchoCm: 33, altoCm: 48.3 }],
-    papeles: [{ id: "couche-150", nombre: "Couché 150 g" }],
-    productos: [{ id: "volante", nombre: "Volante", tamanos: [{ id: "media-carta", nombre: "Media carta" }] }],
-  };
-  const item = {
-    productoId: "volante",
-    tamano: { tipo: "predefinido" as const, tamanoId: "media-carta" },
-    anchoCm: 14,
-    altoCm: 21.6,
-    papelId: "couche-150",
-    hojaId: "mesa",
-  };
-
-  it("usa los nombres del catálogo", () => {
-    expect(etiquetasItem(catalogo, item)).toEqual({
-      producto: "Volante",
-      tamano: "Media carta 14 × 21.6 cm",
-      papel: "Couché 150 g",
-      hoja: "Mesa",
-    });
+describe("textos de KARSO", () => {
+  it("cantidad con su unidad y equivalencia en piezas", () => {
+    expect(textoCantidad("millar", 2, null)).toBe("2 millares (2,000 piezas)");
+    expect(textoCantidad("millar", 1, null)).toBe("1 millar (1,000 piezas)");
+    expect(textoCantidad("paquete", 3, 100)).toBe("3 paquetes de 100 (300 piezas)");
+    expect(textoCantidad("paquete", 1, 100)).toBe("1 paquete de 100 (100 piezas)");
+    expect(textoCantidad("unidad", 2, null)).toBe("2 piezas");
+    expect(textoCantidad("unidad", 1, null)).toBe("1 pieza");
+    expect(textoCantidad("millar", 120, null)).toBe("120 millares (120,000 piezas)");
   });
 
-  it("tamaño personalizado", () => {
-    expect(
-      etiquetasItem(catalogo, { ...item, tamano: { tipo: "personalizado" }, anchoCm: 9, altoCm: 5 }).tamano,
-    ).toBe("Personalizado 9 × 5 cm");
+  it("unidad del campo cantidad", () => {
+    expect(unidadCantidad("millar", null)).toBe("millares");
+    expect(unidadCantidad("paquete", 100)).toBe("paquetes de 100");
+    expect(unidadCantidad("unidad", null)).toBe("piezas");
   });
 
-  it("si el catálogo ya no tiene algo, muestra el id", () => {
-    expect(etiquetasItem(catalogo, { ...item, papelId: "kraft", productoId: "lona" })).toMatchObject({
-      producto: "lona",
-      papel: "kraft",
-    });
+  it("medida en cm sin ceros de más y en m con 2 decimales y área", () => {
+    expect(textoMedida({ unidad: "cm", ancho: 8.7, alto: 5, area: null })).toBe("8.7 × 5 cm");
+    expect(textoMedida({ unidad: "m", ancho: 2, alto: 1.5, area: 3 })).toBe("2.00 × 1.50 m · 3.00 m²");
+    expect(textoMedida({ unidad: "m", ancho: 0.56, alto: 3, area: null })).toBe("0.56 × 3.00 m");
+  });
+
+  it("precio de catálogo de la variante", () => {
+    const base = { piezasPorPaquete: null, volumen: "millar" as const, precioPor: "volumen" as const };
+    expect(textoPrecioVariante({ ...base, precio: 1280 })).toBe("$1,280.00 por millar");
+    expect(textoPrecioVariante({ ...base, precio: 15, volumen: "unidad" })).toBe("$15.00 por pieza");
+    expect(textoPrecioVariante({ ...base, precio: 600, volumen: "paquete", piezasPorPaquete: 100 })).toBe(
+      "$600.00 por paquete de 100",
+    );
+    expect(textoPrecioVariante({ ...base, precio: 55, volumen: "unidad", precioPor: "m2" })).toBe("$55.00 por m²");
+    expect(textoPrecioVariante({ ...base, precio: 500, volumen: "unidad", precioPor: "metro_lineal" })).toBe(
+      "$500.00 por metro lineal",
+    );
   });
 });

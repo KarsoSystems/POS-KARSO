@@ -1,0 +1,1798 @@
+{
+  "version": 1,
+  "ejemplo": true,
+  "supuestos": [
+    "Simula los productos que administrará el panel (KARSO-PROMPT-v1.md 5.13 y 6.4). Precios en pesos, sin IVA, posiblemente desactualizados.",
+    "Volantes bond 4 cartas y 8 cartas usan las medidas de su fila en la tabla 5.13 (56 x 42 y 56 x 87 cm).",
+    "Variantes que KARSO no detalla: rebase 0.3 cm, tolerancia 0.1, 5 días de entrega; caras como su equivalente de 6.4 (postales couché reverso opcional, laminadas obligatorio).",
+    "Adhesivo: grupo de armado 'Adhesivos' y sin reverso.",
+    "Despunte, suaje y foliado solo aplican a las tarjetas por millar (no a la credencial PVC).",
+    "SKU e ids: los de 6.4 donde existen; los demás SKU son consecutivos desde 70001001.",
+    "Todos los productos usan la sucursal 6720a1f0c1a2b3c4d5e60100 y una imagen local en /mock/productos/.",
+    "Fuera del mock por datos pendientes en KARSO (sección 8) o fuera del MVP: tarjeta sulfatada, folder, notas, corte de vinil, DTF, planchado, sublimación y sand blast."
+  ],
+  "productos": [
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60201",
+      "nombre": "Tarjeta",
+      "categoria": "Tarjetas",
+      "descripcion": "Tarjetas de presentación en couché 300 g",
+      "imagen": "/mock/productos/tarjeta.svg",
+      "idSocio": 0,
+      "sucursales": [
+        "6720a1f0c1a2b3c4d5e60100"
+      ],
+      "activo": true,
+      "orden": 1,
+      "requiereArmado": true,
+      "archivo": {
+        "requiereArchivo": true,
+        "formatos": [
+          "jpg",
+          "jpeg",
+          "tiff"
+        ],
+        "colorRequerido": "CMYK",
+        "resolucionMinima": 300,
+        "pesoMaximoMB": 40,
+        "validarMedida": true
+      },
+      "variantes": [
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60211",
+          "sku": "70000177",
+          "nombre": "Couché 8.7 x 5 cm",
+          "grupoArmado": "Tarjetas Couché",
+          "atributos": {
+            "presentacion": "Couché",
+            "acabadoBase": "Barniz UV"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 8.7,
+              "max": 8.7
+            },
+            "alto": {
+              "min": 5,
+              "max": 5
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 115,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60213",
+          "sku": "70001001",
+          "nombre": "Postal chica 8.7 x 15 cm",
+          "grupoArmado": "Tarjetas Couché",
+          "atributos": {
+            "presentacion": "Postal chica",
+            "acabadoBase": "Barniz UV"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 8.7,
+              "max": 8.7
+            },
+            "alto": {
+              "min": 15,
+              "max": 15
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 345,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60214",
+          "sku": "70001002",
+          "nombre": "Postal grande 10 x 17.4 cm",
+          "grupoArmado": "Tarjetas Couché",
+          "atributos": {
+            "presentacion": "Postal grande",
+            "acabadoBase": "Barniz UV"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 10,
+              "max": 10
+            },
+            "alto": {
+              "min": 17.4,
+              "max": 17.4
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 460,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60212",
+          "sku": "70000180",
+          "nombre": "Laminada 8.7 x 5 cm",
+          "grupoArmado": "Tarjetas Laminadas",
+          "atributos": {
+            "presentacion": "Laminada",
+            "acabadoBase": "Laminado mate 4x4"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 8.7,
+              "max": 8.7
+            },
+            "alto": {
+              "min": 5,
+              "max": 5
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 180,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "obligatorio"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60215",
+          "sku": "70001003",
+          "nombre": "Postal laminada chica 8.7 x 15 cm",
+          "grupoArmado": "Tarjetas Laminadas",
+          "atributos": {
+            "presentacion": "Postal laminada chica",
+            "acabadoBase": "Laminado mate 4x4"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 8.7,
+              "max": 8.7
+            },
+            "alto": {
+              "min": 15,
+              "max": 15
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 540,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "obligatorio"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60216",
+          "sku": "70001004",
+          "nombre": "Postal laminada grande 10 x 17.4 cm",
+          "grupoArmado": "Tarjetas Laminadas",
+          "atributos": {
+            "presentacion": "Postal laminada grande",
+            "acabadoBase": "Laminado mate 4x4"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 10,
+              "max": 10
+            },
+            "alto": {
+              "min": 17.4,
+              "max": 17.4
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 720,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "obligatorio"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60217",
+          "sku": "70001005",
+          "nombre": "Laminada barniz a registro 8.7 x 5 cm",
+          "grupoArmado": "Tarjetas Laminadas Barniz Registro",
+          "atributos": {
+            "presentacion": "Laminada barniz a registro",
+            "acabadoBase": "Laminado mate + barniz a registro"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 8.7,
+              "max": 8.7
+            },
+            "alto": {
+              "min": 5,
+              "max": 5
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 400,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "obligatorio"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60218",
+          "sku": "70000184",
+          "nombre": "Credencial PVC 8.5 x 5.4 cm",
+          "grupoArmado": "Credenciales PVC",
+          "atributos": {
+            "presentacion": "Credencial PVC"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 8.5,
+              "max": 8.5
+            },
+            "alto": {
+              "min": 5.4,
+              "max": 5.4
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "unidad",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 15,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        }
+      ],
+      "especificaciones": [
+        {
+          "id": 1,
+          "nombre": "Despunte",
+          "tipoCobro": "por_volumen",
+          "precio": 15,
+          "precioTexto": "+$15.00 por millar",
+          "variantes": [
+            "6720a1f0c1a2b3c4d5e60211",
+            "6720a1f0c1a2b3c4d5e60213",
+            "6720a1f0c1a2b3c4d5e60214",
+            "6720a1f0c1a2b3c4d5e60212",
+            "6720a1f0c1a2b3c4d5e60215",
+            "6720a1f0c1a2b3c4d5e60216",
+            "6720a1f0c1a2b3c4d5e60217"
+          ],
+          "activa": true
+        },
+        {
+          "id": 2,
+          "nombre": "Suaje",
+          "tipoCobro": "por_volumen",
+          "precio": 40,
+          "precioTexto": "+$40.00 por millar",
+          "variantes": [
+            "6720a1f0c1a2b3c4d5e60211",
+            "6720a1f0c1a2b3c4d5e60213",
+            "6720a1f0c1a2b3c4d5e60214",
+            "6720a1f0c1a2b3c4d5e60212",
+            "6720a1f0c1a2b3c4d5e60215",
+            "6720a1f0c1a2b3c4d5e60216",
+            "6720a1f0c1a2b3c4d5e60217"
+          ],
+          "activa": true
+        },
+        {
+          "id": 3,
+          "nombre": "Foliado",
+          "tipoCobro": "por_volumen",
+          "precio": 80,
+          "precioTexto": "+$80.00 por millar",
+          "variantes": [
+            "6720a1f0c1a2b3c4d5e60211",
+            "6720a1f0c1a2b3c4d5e60213",
+            "6720a1f0c1a2b3c4d5e60214",
+            "6720a1f0c1a2b3c4d5e60212",
+            "6720a1f0c1a2b3c4d5e60215",
+            "6720a1f0c1a2b3c4d5e60216",
+            "6720a1f0c1a2b3c4d5e60217"
+          ],
+          "activa": true
+        }
+      ],
+      "condicionesEspeciales": [],
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60203",
+      "nombre": "Volante",
+      "categoria": "Volantes",
+      "descripcion": "Volantes en couché 128 g 4x4 o bond 90 g 4x0",
+      "imagen": "/mock/productos/volante.svg",
+      "idSocio": 0,
+      "sucursales": [
+        "6720a1f0c1a2b3c4d5e60100"
+      ],
+      "activo": true,
+      "orden": 2,
+      "requiereArmado": true,
+      "archivo": {
+        "requiereArchivo": true,
+        "formatos": [
+          "jpg",
+          "jpeg",
+          "tiff"
+        ],
+        "colorRequerido": "CMYK",
+        "resolucionMinima": 300,
+        "pesoMaximoMB": 40,
+        "validarMedida": true
+      },
+      "variantes": [
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60261",
+          "sku": "70001006",
+          "nombre": "1/4 carta · Ajustado · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "1/4 carta",
+            "ajuste": "Ajustado"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 9.9,
+              "max": 9.9
+            },
+            "alto": {
+              "min": 14,
+              "max": 14
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 160,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60262",
+          "sku": "70001007",
+          "nombre": "1/2 carta · Ajustado · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "1/2 carta",
+            "ajuste": "Ajustado"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 19.8,
+              "max": 19.8
+            },
+            "alto": {
+              "min": 14,
+              "max": 14
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 320,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60231",
+          "sku": "70000201",
+          "nombre": "Carta · Ajustado · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "Carta",
+            "ajuste": "Ajustado"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 19.8,
+              "max": 19.8
+            },
+            "alto": {
+              "min": 28,
+              "max": 28
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 640,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60263",
+          "sku": "70001008",
+          "nombre": "Oficio · Ajustado · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "Oficio",
+            "ajuste": "Ajustado"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 19.8,
+              "max": 19.8
+            },
+            "alto": {
+              "min": 35,
+              "max": 35
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 960,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60264",
+          "sku": "70001009",
+          "nombre": "Tabloide · Ajustado · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "Tabloide",
+            "ajuste": "Ajustado"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 28,
+              "max": 28
+            },
+            "alto": {
+              "min": 39.6,
+              "max": 39.6
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 1280,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60265",
+          "sku": "70001010",
+          "nombre": "4 cartas · Ajustado · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "4 cartas",
+            "ajuste": "Ajustado"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 56,
+              "max": 56
+            },
+            "alto": {
+              "min": 42,
+              "max": 42
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 2400,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60266",
+          "sku": "70001011",
+          "nombre": "8 cartas · Ajustado · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "8 cartas",
+            "ajuste": "Ajustado"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 56,
+              "max": 56
+            },
+            "alto": {
+              "min": 87,
+              "max": 87
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 5000,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60267",
+          "sku": "70001012",
+          "nombre": "4 oficios · Ajustado · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "4 oficios",
+            "ajuste": "Ajustado"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 70,
+              "max": 70
+            },
+            "alto": {
+              "min": 47,
+              "max": 47
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 4800,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60268",
+          "sku": "70001013",
+          "nombre": "8 oficios · Ajustado · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "8 oficios",
+            "ajuste": "Ajustado"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 70,
+              "max": 70
+            },
+            "alto": {
+              "min": 95,
+              "max": 95
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 7000,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60269",
+          "sku": "70001014",
+          "nombre": "1/4 carta · Real · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "1/4 carta",
+            "ajuste": "Real"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 10.5,
+              "max": 10.5
+            },
+            "alto": {
+              "min": 14,
+              "max": 14
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 320,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60270",
+          "sku": "70001015",
+          "nombre": "1/2 carta · Real · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "1/2 carta",
+            "ajuste": "Real"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 14,
+              "max": 14
+            },
+            "alto": {
+              "min": 21,
+              "max": 21
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 640,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60232",
+          "sku": "70000202",
+          "nombre": "Carta · Real · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "Carta",
+            "ajuste": "Real"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 21,
+              "max": 21
+            },
+            "alto": {
+              "min": 28,
+              "max": 28
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 1280,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60271",
+          "sku": "70001016",
+          "nombre": "Oficio · Real · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "Oficio",
+            "ajuste": "Real"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 21,
+              "max": 21
+            },
+            "alto": {
+              "min": 35,
+              "max": 35
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 1920,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60272",
+          "sku": "70001017",
+          "nombre": "Tabloide · Real · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "Tabloide",
+            "ajuste": "Real"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 28,
+              "max": 28
+            },
+            "alto": {
+              "min": 42,
+              "max": 42
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 2560,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60273",
+          "sku": "70001018",
+          "nombre": "Tríptico · Real · Couché 128 g",
+          "grupoArmado": "Volantes Couché 128 g",
+          "atributos": {
+            "papel": "Couché 128 g 4x4",
+            "tamano": "Tríptico",
+            "ajuste": "Real"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 21,
+              "max": 21
+            },
+            "alto": {
+              "min": 28,
+              "max": 28
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 1280,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "opcional"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60233",
+          "sku": "70000203",
+          "nombre": "Carta · Real · Bond 90 g",
+          "grupoArmado": "Volantes Bond 90 g",
+          "atributos": {
+            "papel": "Bond 90 g 4x0",
+            "tamano": "Carta",
+            "ajuste": "Real"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 21,
+              "max": 21
+            },
+            "alto": {
+              "min": 28,
+              "max": 28
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 1600,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "no_aplica"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60274",
+          "sku": "70001019",
+          "nombre": "Oficio · Real · Bond 90 g",
+          "grupoArmado": "Volantes Bond 90 g",
+          "atributos": {
+            "papel": "Bond 90 g 4x0",
+            "tamano": "Oficio",
+            "ajuste": "Real"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 21,
+              "max": 21
+            },
+            "alto": {
+              "min": 35,
+              "max": 35
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 2200,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "no_aplica"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60275",
+          "sku": "70001020",
+          "nombre": "4 cartas · Real · Bond 90 g",
+          "grupoArmado": "Volantes Bond 90 g",
+          "atributos": {
+            "papel": "Bond 90 g 4x0",
+            "tamano": "4 cartas",
+            "ajuste": "Real"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 56,
+              "max": 56
+            },
+            "alto": {
+              "min": 42,
+              "max": 42
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 2560,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "no_aplica"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60276",
+          "sku": "70001021",
+          "nombre": "8 cartas · Real · Bond 90 g",
+          "grupoArmado": "Volantes Bond 90 g",
+          "atributos": {
+            "papel": "Bond 90 g 4x0",
+            "tamano": "8 cartas",
+            "ajuste": "Real"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 56,
+              "max": 56
+            },
+            "alto": {
+              "min": 87,
+              "max": 87
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 5500,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "no_aplica"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        }
+      ],
+      "especificaciones": [],
+      "condicionesEspeciales": [],
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60202",
+      "nombre": "Lona 13 oz.",
+      "categoria": "Lonas",
+      "descripcion": "Lona de 13 onzas impresa en gran formato",
+      "imagen": "/mock/productos/lona.svg",
+      "idSocio": 0,
+      "sucursales": [
+        "6720a1f0c1a2b3c4d5e60100"
+      ],
+      "activo": true,
+      "orden": 3,
+      "requiereArmado": false,
+      "archivo": {
+        "requiereArchivo": true,
+        "formatos": [
+          "jpg",
+          "jpeg",
+          "tiff"
+        ],
+        "colorRequerido": "CMYK",
+        "resolucionMinima": 100,
+        "pesoMaximoMB": 40,
+        "validarMedida": true
+      },
+      "variantes": [
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60221",
+          "sku": "70000178",
+          "nombre": "Lona 720 dpi",
+          "grupoArmado": null,
+          "atributos": {
+            "calidad": "720 dpi",
+            "entrega": "Normal"
+          },
+          "medida": {
+            "tipo": "variable",
+            "unidad": "m",
+            "ancho": {
+              "min": 0.5,
+              "max": 5
+            },
+            "alto": {
+              "min": 0.5,
+              "max": 10
+            },
+            "rebase": 0,
+            "tolerancia": 0.02,
+            "permiteGirar": true,
+            "medidasRapidas": [
+              {
+                "nombre": "Banner",
+                "ancho": 1.6,
+                "alto": 0.6
+              }
+            ]
+          },
+          "volumen": "unidad",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "m2",
+          "precio": 55,
+          "cobroMinimo": 100,
+          "diasEntrega": 2,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "no_aplica"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60222",
+          "sku": "70000179",
+          "nombre": "Lona urgente 720 dpi",
+          "grupoArmado": null,
+          "atributos": {
+            "calidad": "720 dpi",
+            "entrega": "Urgente (mismo día)"
+          },
+          "medida": {
+            "tipo": "variable",
+            "unidad": "m",
+            "ancho": {
+              "min": 0.5,
+              "max": 5
+            },
+            "alto": {
+              "min": 0.5,
+              "max": 10
+            },
+            "rebase": 0,
+            "tolerancia": 0.02,
+            "permiteGirar": true,
+            "medidasRapidas": [
+              {
+                "nombre": "Banner",
+                "ancho": 1.6,
+                "alto": 0.6
+              }
+            ]
+          },
+          "volumen": "unidad",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "m2",
+          "precio": 75,
+          "cobroMinimo": 100,
+          "diasEntrega": 0,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "no_aplica"
+          },
+          "canales": [
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60223",
+          "sku": "70000181",
+          "nombre": "Lona alta resolución 1200 dpi",
+          "grupoArmado": null,
+          "atributos": {
+            "calidad": "1200 dpi",
+            "entrega": "Normal"
+          },
+          "medida": {
+            "tipo": "variable",
+            "unidad": "m",
+            "ancho": {
+              "min": 0.5,
+              "max": 5
+            },
+            "alto": {
+              "min": 0.5,
+              "max": 10
+            },
+            "rebase": 0,
+            "tolerancia": 0.02,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "unidad",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "m2",
+          "precio": 180,
+          "cobroMinimo": 200,
+          "diasEntrega": 2,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "no_aplica"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true,
+          "archivo": {
+            "resolucionMinima": 150
+          }
+        }
+      ],
+      "especificaciones": [
+        {
+          "id": 5,
+          "nombre": "Ojillos",
+          "tipoCobro": "por_pieza",
+          "precio": 3,
+          "cadaMetros": 0.5,
+          "precioTexto": "+$3.00 por ojillo (cada 50 cm)",
+          "variantes": null,
+          "activa": true
+        },
+        {
+          "id": 6,
+          "nombre": "Dobladillo",
+          "tipoCobro": "por_metro_lineal",
+          "precio": 10,
+          "precioTexto": "+$10.00 por metro lineal",
+          "variantes": null,
+          "activa": true
+        },
+        {
+          "id": 7,
+          "nombre": "Empalme",
+          "tipoCobro": "fijo",
+          "precio": 30,
+          "precioTexto": "+$30.00 por pieza",
+          "variantes": null,
+          "activa": true
+        }
+      ],
+      "condicionesEspeciales": [],
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60204",
+      "nombre": "Imán",
+      "categoria": "Imanes",
+      "descripcion": "Imán impreso",
+      "imagen": "/mock/productos/iman.svg",
+      "idSocio": 0,
+      "sucursales": [
+        "6720a1f0c1a2b3c4d5e60100"
+      ],
+      "activo": true,
+      "orden": 4,
+      "requiereArmado": false,
+      "archivo": {
+        "requiereArchivo": true,
+        "formatos": [
+          "jpg",
+          "jpeg",
+          "tiff"
+        ],
+        "colorRequerido": "CMYK",
+        "resolucionMinima": 300,
+        "pesoMaximoMB": 40,
+        "validarMedida": true
+      },
+      "variantes": [
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60241",
+          "sku": "70000301",
+          "nombre": "100 piezas 9 x 5 cm",
+          "grupoArmado": null,
+          "atributos": {
+            "presentacion": "100 piezas"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 9,
+              "max": 9
+            },
+            "alto": {
+              "min": 5,
+              "max": 5
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "paquete",
+          "piezasPorPaquete": 100,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 600,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "no_aplica"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60242",
+          "sku": "70000302",
+          "nombre": "1,000 piezas 9 x 5 cm",
+          "grupoArmado": null,
+          "atributos": {
+            "presentacion": "1,000 piezas"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 9,
+              "max": 9
+            },
+            "alto": {
+              "min": 5,
+              "max": 5
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 2200,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "no_aplica"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60243",
+          "sku": "70000303",
+          "nombre": "Metro lineal (ancho 56 cm)",
+          "grupoArmado": null,
+          "atributos": {
+            "presentacion": "Metro lineal"
+          },
+          "medida": {
+            "tipo": "variable",
+            "unidad": "m",
+            "ancho": {
+              "min": 0.56,
+              "max": 0.56
+            },
+            "alto": {
+              "min": 1,
+              "max": 20
+            },
+            "rebase": 0,
+            "tolerancia": 0.02,
+            "permiteGirar": false,
+            "medidasRapidas": []
+          },
+          "volumen": "unidad",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "metro_lineal",
+          "precio": 500,
+          "cobroMinimo": 500,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "no_aplica"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true,
+          "archivo": {
+            "resolucionMinima": 150
+          }
+        }
+      ],
+      "especificaciones": [],
+      "condicionesEspeciales": [],
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60205",
+      "nombre": "Adhesivo",
+      "categoria": "Adhesivos",
+      "descripcion": "Adhesivo impreso por millar",
+      "imagen": "/mock/productos/adhesivo.svg",
+      "idSocio": 0,
+      "sucursales": [
+        "6720a1f0c1a2b3c4d5e60100"
+      ],
+      "activo": true,
+      "orden": 5,
+      "requiereArmado": true,
+      "archivo": {
+        "requiereArchivo": true,
+        "formatos": [
+          "jpg",
+          "jpeg",
+          "tiff"
+        ],
+        "colorRequerido": "CMYK",
+        "resolucionMinima": 300,
+        "pesoMaximoMB": 40,
+        "validarMedida": true
+      },
+      "variantes": [
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60251",
+          "sku": "70001022",
+          "nombre": "Carta 21 x 28 cm",
+          "grupoArmado": "Adhesivos",
+          "atributos": {
+            "tamano": "Carta"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 21,
+              "max": 21
+            },
+            "alto": {
+              "min": 28,
+              "max": 28
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 2200,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "no_aplica"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60252",
+          "sku": "70001023",
+          "nombre": "Tabloide 28 x 42 cm",
+          "grupoArmado": "Adhesivos",
+          "atributos": {
+            "tamano": "Tabloide"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 28,
+              "max": 28
+            },
+            "alto": {
+              "min": 42,
+              "max": 42
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 4400,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "no_aplica"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        },
+        {
+          "varianteId": "6720a1f0c1a2b3c4d5e60253",
+          "sku": "70001024",
+          "nombre": "4 cartas 56 x 42 cm",
+          "grupoArmado": "Adhesivos",
+          "atributos": {
+            "tamano": "4 cartas"
+          },
+          "medida": {
+            "tipo": "fija",
+            "unidad": "cm",
+            "ancho": {
+              "min": 56,
+              "max": 56
+            },
+            "alto": {
+              "min": 42,
+              "max": 42
+            },
+            "rebase": 0.3,
+            "tolerancia": 0.1,
+            "permiteGirar": true,
+            "medidasRapidas": []
+          },
+          "volumen": "millar",
+          "piezasPorPaquete": null,
+          "cantidadMinima": 1,
+          "precioPor": "volumen",
+          "precio": 8400,
+          "cobroMinimo": 0,
+          "diasEntrega": 5,
+          "caras": {
+            "frente": "obligatorio",
+            "reverso": "no_aplica"
+          },
+          "canales": [
+            "en_linea",
+            "mostrador"
+          ],
+          "activa": true
+        }
+      ],
+      "especificaciones": [],
+      "condicionesEspeciales": [],
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    }
+  ]
+}

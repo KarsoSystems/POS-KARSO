@@ -12,9 +12,9 @@ export const ETIQUETA_ESTADO: Record<EstadoPedido, string> = {
 
 const mxn = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
 
-/** 250000 → "$2,500.00". */
-export function formatearMxn(centavos: number): string {
-  return mxn.format(centavos / 100);
+/** 2500 → "$2,500.00". Los montos de KARSO van en pesos. */
+export function formatearMxn(pesos: number): string {
+  return mxn.format(pesos);
 }
 
 const fecha = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", year: "numeric" });
@@ -40,38 +40,62 @@ export function formatearCm(cm: number): string {
   return String(Math.round(cm * 100) / 100);
 }
 
-interface CatalogoNombres {
-  hojas: { id: string; nombre: string; anchoCm: number; altoCm: number }[];
-  papeles: { id: string; nombre: string }[];
-  productos: { id: string; nombre: string; tamanos: { id: string; nombre: string }[] }[];
+// ── KARSO: cantidad, medida y precio (SPEC 04) ─────────────────────────────
+
+type Volumen = "millar" | "unidad" | "paquete";
+
+const plural = (n: number, singular: string, varios: string) => (n === 1 ? singular : varios);
+
+/** Unidad de la cantidad para el campo del editor: "millares", "paquetes de 100", "piezas". */
+export function unidadCantidad(volumen: Volumen, piezasPorPaquete: number | null, cantidad = 2): string {
+  if (volumen === "millar") return plural(cantidad, "millar", "millares");
+  if (volumen === "paquete") return `${plural(cantidad, "paquete", "paquetes")} de ${formatearNumero(piezasPorPaquete ?? 1)}`;
+  return plural(cantidad, "pieza", "piezas");
 }
 
-interface ItemNombrable {
-  productoId: string;
-  tamano: { tipo: "predefinido"; tamanoId: string } | { tipo: "personalizado" };
-  anchoCm: number;
-  altoCm: number;
-  papelId: string;
-  hojaId: string;
+/** "2 millares (2,000 piezas)", "3 paquetes de 100 (300 piezas)", "2 piezas". */
+export function textoCantidad(volumen: Volumen, cantidad: number, piezasPorPaquete: number | null): string {
+  const unidad = `${formatearNumero(cantidad)} ${unidadCantidad(volumen, piezasPorPaquete, cantidad)}`;
+  if (volumen === "unidad") return unidad;
+  const piezas = cantidad * (volumen === "millar" ? 1000 : (piezasPorPaquete ?? 1));
+  return `${unidad} (${formatearNumero(piezas)} ${plural(piezas, "pieza", "piezas")})`;
 }
 
-/**
- * Nombres legibles de un ítem. Si el catálogo ya no tiene algo (el ítem tiene
- * `problema`), se muestra el id guardado para que el cliente sepa qué corregir.
- */
-export function etiquetasItem(catalogo: CatalogoNombres, item: ItemNombrable) {
-  const producto = catalogo.productos.find((p) => p.id === item.productoId);
-  const medidas = `${formatearCm(item.anchoCm)} × ${formatearCm(item.altoCm)} cm`;
-  const tamanoId = item.tamano.tipo === "predefinido" ? item.tamano.tamanoId : null;
-  const tamanoNombre =
-    tamanoId === null
-      ? "Personalizado"
-      : (producto?.tamanos.find((t) => t.id === tamanoId)?.nombre ?? tamanoId);
-  const hoja = catalogo.hojas.find((h) => h.id === item.hojaId);
-  return {
-    producto: producto?.nombre ?? item.productoId,
-    tamano: `${tamanoNombre} ${medidas}`,
-    papel: catalogo.papeles.find((p) => p.id === item.papelId)?.nombre ?? item.papelId,
-    hoja: hoja?.nombre ?? item.hojaId,
-  };
+/** 1.5 → "1.50": las medidas en metros siempre con 2 decimales. */
+export function formatearM(m: number): string {
+  return m.toFixed(2);
+}
+
+interface MedidaTexto {
+  unidad: "cm" | "m";
+  ancho: number;
+  alto: number;
+  area: number | null;
+}
+
+/** "8.7 × 5 cm", "2.00 × 1.50 m · 3.00 m²". */
+export function textoMedida(medida: MedidaTexto): string {
+  const f = medida.unidad === "m" ? formatearM : formatearCm;
+  const base = `${f(medida.ancho)} × ${f(medida.alto)} ${medida.unidad}`;
+  return medida.area === null ? base : `${base} · ${formatearM(medida.area)} m²`;
+}
+
+const POR_PRECIO = {
+  m2: "por m²",
+  metro_lineal: "por metro lineal",
+  cotizacion: "por cotización",
+} as const;
+
+/** Precio de catálogo de una variante: "$1,280.00 por millar", "$55.00 por m²". */
+export function textoPrecioVariante(variante: {
+  precio: number;
+  precioPor: "volumen" | "m2" | "metro_lineal" | "cotizacion";
+  volumen: Volumen;
+  piezasPorPaquete: number | null;
+}): string {
+  const por =
+    variante.precioPor === "volumen"
+      ? `por ${unidadCantidad(variante.volumen, variante.piezasPorPaquete, 1)}`
+      : POR_PRECIO[variante.precioPor];
+  return `${formatearMxn(variante.precio)} ${por}`;
 }

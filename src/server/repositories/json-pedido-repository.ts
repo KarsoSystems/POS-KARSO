@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { calcularTotales } from "@/lib/pedidos/presupuesto";
+import { calcularTotales } from "@/lib/pedidos/cotizacion";
 import { formatFolio, type Pedido } from "@/server/domain/pedido";
 import { createJsonStore, resolveDataDir } from "@/server/storage/json-store";
 import {
@@ -11,8 +11,10 @@ import {
 
 // El contador de folios vive en el mismo archivo que los pedidos: así el folio
 // se asigna bajo el mismo lock que la confirmación y no se gastan en borradores.
+// Versión 2 = líneas de KARSO (SPEC 04); un archivo de la versión 1 (SPEC 02) se
+// descarta: eran datos de prueba del demo.
 interface OrdersFile {
-  version: 1;
+  version: 2;
   ultimoFolio: number;
   pedidos: Pedido[];
 }
@@ -27,8 +29,9 @@ async function aplicar(pedido: Pedido, cambiar: CambiarPedido): Promise<void> {
 export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): PedidoRepository {
   const store = createJsonStore<OrdersFile>(
     "orders.json",
-    { version: 1, ultimoFolio: 0, pedidos: [] },
+    { version: 2, ultimoFolio: 0, pedidos: [] },
     dataDir,
+    { versionDistinta: "descartar" },
   );
 
   const buscar = (data: OrdersFile, id: string) => {
@@ -43,7 +46,7 @@ export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): 
       return data.pedidos.find((p) => p.userId === userId && p.estado === "borrador") ?? null;
     },
 
-    crearBorrador(userId, tasaIva) {
+    crearBorrador(userId) {
       return store.update((data) => {
         const existente = data.pedidos.find((p) => p.userId === userId && p.estado === "borrador");
         if (existente) return existente;
@@ -54,8 +57,8 @@ export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): 
           folio: null,
           userId,
           estado: "borrador",
-          items: [],
-          totales: calcularTotales([], tasaIva),
+          productos: [],
+          ...calcularTotales([]),
           pago: { estado: "pendiente" },
           createdAt: now,
           updatedAt: now,

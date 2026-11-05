@@ -1,65 +1,69 @@
 import { AlertTriangle } from "lucide-react";
+import { CotizacionLinea } from "@/components/molecules/cotizacion-linea";
 import { MiniaturaArchivo } from "@/components/molecules/miniatura-archivo";
-import { etiquetasItem, formatearMxn, formatearNumero } from "@/lib/pedidos/formato";
-import type { Catalogo, PublicArchivo, Subpedido } from "@/lib/pedidos-api";
+import { etiquetaAtributo } from "@/lib/catalogo/atributos";
+import { textoMedida } from "@/lib/pedidos/formato";
+import type { LineaPedido, PublicArchivo } from "@/lib/pedidos-api";
 import { cn } from "@/lib/utils";
 
 interface ItemResumenProps {
-  item: Subpedido;
+  linea: LineaPedido;
   archivo: PublicArchivo | undefined;
-  catalogo: Catalogo;
   /** Botones (editar, quitar) en la esquina. */
   acciones?: React.ReactNode;
-  /** Contenido extra debajo (p. ej. la vista previa en el detalle). */
+  /** Contenido extra debajo. */
   children?: React.ReactNode;
   className?: string;
 }
 
-/** Un ítem del pedido: archivo, producto, medidas, papel, hoja, cantidad, hojas y subtotal. */
-export function ItemResumen({ item, archivo, catalogo, acciones, children, className }: ItemResumenProps) {
-  const etiquetas = etiquetasItem(catalogo, item);
-  const { hojas, subtotalCentavos } = item.presupuesto;
-
+/**
+ * Una línea del pedido: archivo, producto y variante con atributos y SKU, medida,
+ * y el desglose de KARSO 5.4 (base + acabados = importe unitario × cantidad = subtotal).
+ */
+export function ItemResumen({ linea, archivo, acciones, children, className }: ItemResumenProps) {
   return (
-    <li className={cn("space-y-3 rounded-lg border bg-card p-4", className)} aria-label={`${etiquetas.producto}: ${archivo?.nombreOriginal ?? ""}`}>
+    <li
+      className={cn("space-y-3 rounded-lg border bg-card p-4", className)}
+      aria-label={`${linea.nombre}: ${archivo?.nombreOriginal ?? ""}`}
+    >
       <div className="flex gap-3">
         <MiniaturaArchivo archivo={archivo} />
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="font-medium">{etiquetas.producto}</p>
+              <p className="font-medium">
+                {linea.nombre} · {linea.variante}
+              </p>
               <p className="truncate text-sm text-muted-foreground" title={archivo?.nombreOriginal}>
                 {archivo?.nombreOriginal ?? "Archivo no disponible"}
               </p>
             </div>
             {acciones && <div className="flex shrink-0 gap-1">{acciones}</div>}
           </div>
-          <p className="text-sm">
-            {etiquetas.tamano} · {etiquetas.papel} · Hoja {etiquetas.hoja}
+          <p className="text-sm text-muted-foreground">
+            {Object.entries(linea.atributos)
+              .map(([llave, valor]) => `${etiquetaAtributo(llave)}: ${valor}`)
+              .join(" · ")}
           </p>
-          {item.descripcion && <p className="text-sm break-words text-muted-foreground">{item.descripcion}</p>}
+          <p className="text-sm">
+            {textoMedida(linea.medida)} · <span className="text-muted-foreground">SKU {linea.sku}</span>
+          </p>
+          {linea.descripcion && <p className="text-sm break-words text-muted-foreground">{linea.descripcion}</p>}
         </div>
       </div>
 
-      <dl className="grid grid-cols-3 gap-2 border-t pt-3 text-sm">
-        <div>
-          <dt className="text-muted-foreground">Cantidad</dt>
-          <dd className="tabular-nums">{formatearNumero(item.cantidad)}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Hojas</dt>
-          <dd className="tabular-nums">{formatearNumero(hojas)}</dd>
-        </div>
-        <div className="text-right">
-          <dt className="text-muted-foreground">Subtotal</dt>
-          <dd className="font-medium tabular-nums">{formatearMxn(subtotalCentavos)}</dd>
-        </div>
-      </dl>
+      <CotizacionLinea
+        cotizacion={linea}
+        cantidad={linea.cantidad}
+        volumen={linea.volumen}
+        piezasPorPaquete={linea.piezasPorPaquete}
+        className="border-t pt-3"
+      />
 
-      {item.problema && (
+      {linea.problema && (
         <p className="flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-sm text-destructive" role="alert">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-          {item.problema}. Edita el ítem para corregirlo.
+          {linea.problema}. Edita el ítem para corregirlo.
         </p>
       )}
 
