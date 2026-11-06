@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,13 +12,13 @@ const env = vi.hoisted(() => {
   return {
     base,
     dataDir: process.env.DATA_DIR,
+    uploadsDir: process.env.UPLOADS_DIR,
     productosPath: process.env.PRODUCTOS_PATH,
   };
 });
 
 vi.mock("next/headers", () => import("@/test/next-headers-mock"));
 
-import { POST as subir } from "@/app/api/archivos/route";
 import type { ProductosArchivo } from "@/lib/catalogo/schema";
 import { PRODUCTOS_PATH } from "@/server/mock-panel";
 import { POST as cancelar } from "./[id]/cancelar/route";
@@ -28,6 +28,9 @@ import { POST as agregar } from "./borrador/items/route";
 import { GET as getBorrador } from "./borrador/route";
 import { GET as listar } from "./route";
 import { jar } from "@/test/next-headers-mock";
+import { GET as descargarArchivo } from "@/app/api/archivos/[id]/route";
+import { GET as descargarMiniatura } from "@/app/api/archivos/[id]/miniatura/route";
+import { ctxId, fixture, subirArchivoPrueba } from "@/test/archivos";
 import { cambiarSesion, iniciarSesionActiva } from "@/test/sesion";
 
 const TARJETA = "6720a1f0c1a2b3c4d5e60201";
@@ -48,18 +51,46 @@ const idCtx = (id: string) => ({ params: Promise.resolve({ id }) });
 const getDetalle = (id: string) => detalle(new Request("http://localhost"), idCtx(id));
 const postCancelar = (id: string) => cancelar(new Request("http://localhost", { method: "POST" }), idCtx(id));
 
-/** Sube un archivo y agrega 2 millares de tarjeta couché con suaje ($310.00). */
-async function agregarTarjeta() {
-  const form = new FormData();
-  form.append("archivo", new File(["imagen"], "tarjeta.jpg"));
-  const subida = await subir(new Request("http://localhost/api/archivos", { method: "POST", body: form }));
-  const archivoId = (await subida.json()).archivo.id;
+/** Agrega 2 millares de tarjeta couché con suaje ($310.00) con ese frente y reverso. */
+async function agregarLinea(frente: string, reverso: unknown = null) {
   const res = await agregar(
     new Request("http://localhost/api/pedidos/borrador/items", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        archivoId,
+        archivos: { frente, reverso },
+        productoId: TARJETA,
+        varianteId: TARJETA_COUCHE,
+        especificaciones: [SUAJE],
+        cantidad: 2,
+      }),
+    }),
+  );
+  expect(res.status).toBe(201);
+}
+
+/** Archivos guardados bajo uploads/<carpeta>, con su ruta relativa. */
+async function enCarpeta(carpeta: string): Promise<string[]> {
+  try {
+    const entradas = await readdir(path.join(env.uploadsDir, carpeta), { recursive: true, withFileTypes: true });
+    return entradas
+      .filter((e) => e.isFile())
+      .map((e) => path.relative(path.join(env.uploadsDir, carpeta), path.join(e.parentPath, e.name)))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+/** Sube un archivo y agrega 2 millares de tarjeta couché con suaje ($310.00). */
+async function agregarTarjeta() {
+  const archivoId = (await subirArchivoPrueba("tarjeta.jpg", "imagen")).id;
+  const res = await agregar(
+    new Request("http://localhost/api/pedidos/borrador/items", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        archivos: { frente: archivoId, reverso: null },
         productoId: TARJETA,
         varianteId: TARJETA_COUCHE,
         especificaciones: [SUAJE],
@@ -180,6 +211,105 @@ describe("POST /api/pedidos/borrador/confirmar", () => {
   });
 });
 
+describe("archivos al hacer el pedido (SPEC 05)", () => {
+  it("copia frente (con miniatura) y reverso a pedidos/P-000001/ y borra los temporales", async () => {
+    await iniciarSesionActiva();
+    const frente = await subirArchivoPrueba("tarjeta.jpg", await fixture("tarjeta-cmyk.jpg"));
+    const reverso = await subirArchivoPrueba("reverso.pdf", "%PDF-1.4");
+    await agregarLinea(frente.id, { tipo: "archivo", archivoId: reverso.id });
+    expect(await enCarpeta("temporal")).toHaveLength(3);
+
+    const res = await confirmar();
+    expect(res.status).toBe(201);
+    const { pedido, archivos } = await res.json();
+    const { lineaId } = pedido.productos[0];
+    const caras = pedido.productos[0].archivos;
+
+    expect(await enCarpeta("pedidos")).toEqual([
+      `P-000001/${lineaId}_frente.jpg`,
+      `P-000001/${lineaId}_frente.jpg.miniatura.jpg`,
+      `P-000001/${lineaId}_reverso.pdf`,
+    ]);
+    expect(await enCarpeta("temporal")).toEqual([]);
+
+    // Las líneas apuntan a archivos nuevos, con los mismos datos y advertencias.
+    expect(caras.frente.archivoId).not.toBe(frente.id);
+    expect(caras.reverso.archivoId).not.toBe(reverso.id);
+    expect(caras.frente).toMatchObject({ nombreOriginal: "tarjeta.jpg", color: "CMYK", validado: true });
+    expect(archivos[caras.frente.archivoId]).toMatchObject({ nombreOriginal: "tarjeta.jpg", estado: "subido", miniatura: true });
+
+    const registros = JSON.parse(await readFile(path.join(env.dataDir, "archivos.json"), "utf8")).archivos;
+    expect(registros.map((a: { key: string }) => a.key).sort()).toEqual([
+      `pedidos/P-000001/${lineaId}_frente.jpg`,
+      `pedidos/P-000001/${lineaId}_reverso.pdf`,
+    ]);
+  });
+
+  it("el detalle sirve los archivos nuevos (original y miniatura)", async () => {
+    await iniciarSesionActiva();
+    const contenido = await fixture("tarjeta-cmyk.jpg");
+    await agregarLinea((await subirArchivoPrueba("tarjeta.jpg", contenido)).id);
+    const { pedido } = await (await confirmar()).json();
+
+    const { archivos } = await (await getDetalle(pedido.id)).json();
+    const id = pedido.productos[0].archivos.frente.archivoId;
+    expect(Object.keys(archivos)).toEqual([id]);
+
+    const original = await descargarArchivo(new Request(`http://localhost/api/archivos/${id}`), ctxId(id));
+    expect(original.status).toBe(200);
+    expect(Buffer.from(await original.arrayBuffer())).toEqual(contenido);
+    const miniatura = await descargarMiniatura(new Request(`http://localhost/api/archivos/${id}/miniatura`), ctxId(id));
+    expect(miniatura.status).toBe(200);
+  });
+
+  it("un mismo archivo en dos líneas queda copiado dos veces", async () => {
+    await iniciarSesionActiva();
+    const archivo = await subirArchivoPrueba("tarjeta.pdf", "%PDF");
+    await agregarLinea(archivo.id);
+    await agregarLinea(archivo.id);
+    const { pedido } = await (await confirmar()).json();
+
+    const [a, b] = pedido.productos;
+    expect(a.archivos.frente.archivoId).not.toBe(b.archivos.frente.archivoId);
+    expect(await enCarpeta("pedidos")).toEqual(
+      [`P-000001/${a.lineaId}_frente.pdf`, `P-000001/${b.lineaId}_frente.pdf`].sort(),
+    );
+    expect(await enCarpeta("temporal")).toEqual([]);
+  });
+
+  it("calendario y texto no copian nada", async () => {
+    await iniciarSesionActiva();
+    const anio = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Monterrey", year: "numeric" }).format(new Date()));
+    await agregarLinea((await subirArchivoPrueba("a.pdf", "%PDF")).id, { tipo: "calendario", anio });
+    const { pedido } = await (await confirmar()).json();
+    expect(pedido.productos[0].archivos.reverso).toEqual({ tipo: "calendario", anio });
+    expect(await enCarpeta("pedidos")).toEqual([`P-000001/${pedido.productos[0].lineaId}_frente.pdf`]);
+  });
+
+  it("confirmar con advertencias → 201", async () => {
+    await iniciarSesionActiva();
+    await agregarLinea((await subirArchivoPrueba("rgb.jpg", await fixture("tarjeta-rgb.jpg"))).id);
+    const res = await confirmar();
+    expect(res.status).toBe(201);
+    expect((await res.json()).pedido.productos[0].archivos.frente).toMatchObject({
+      validado: false,
+      advertencias: [{ codigo: "color" }],
+    });
+  });
+
+  it("si una línea tiene problema no se copia nada ni se borran los temporales", async () => {
+    await iniciarSesionActiva();
+    await agregarLinea((await subirArchivoPrueba("a.pdf", "%PDF")).id);
+    const archivo: ProductosArchivo = JSON.parse(await readFile(env.productosPath, "utf8"));
+    archivo.productos.find((p) => p._id === TARJETA)!.activo = false;
+    await writeFile(env.productosPath, JSON.stringify(archivo));
+
+    expect((await confirmar()).status).toBe(409);
+    expect(await enCarpeta("pedidos")).toEqual([]);
+    expect(await enCarpeta("temporal")).toHaveLength(1);
+  });
+});
+
 describe("GET /api/pedidos", () => {
   it("sin pedidos devuelve una lista vacía (el borrador no cuenta)", async () => {
     await iniciarSesionActiva();
@@ -211,7 +341,7 @@ describe("GET /api/pedidos/:id", () => {
     expect(res.status).toBe(200);
     const { pedido, archivos } = await res.json();
     expect(pedido.folio).toBe("P-000001");
-    expect(archivos[pedido.productos[0].archivoId].nombreOriginal).toBe("tarjeta.jpg");
+    expect(archivos[pedido.productos[0].archivos.frente.archivoId].nombreOriginal).toBe("tarjeta.jpg");
   });
 
   it("el pedido de otro usuario → 404", async () => {

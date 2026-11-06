@@ -99,3 +99,34 @@ export function textoPrecioVariante(variante: {
       : POR_PRECIO[variante.precioPor];
   return `${formatearMxn(variante.precio)} ${por}`;
 }
+
+/** 46_000 → "45 KB"; 3_355_443 → "3.2 MB". */
+export function formatearPeso(bytes: number): string {
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+interface DatosArchivo {
+  extension: string;
+  bytes: number;
+  metadatos: { anchoPx: number | null; altoPx: number | null; color: "CMYK" | "RGB" | "otro" | null } | null;
+}
+
+/** "TIFF · CMYK · 1098 × 661 px · 3.2 MB"; de un vector o una imagen ilegible, "PDF · 3.2 MB". */
+export function textoDatosArchivo({ extension, bytes, metadatos }: DatosArchivo): string {
+  const partes = [extension.toUpperCase()];
+  if (metadatos?.color) partes.push(metadatos.color === "otro" ? "Otro color" : metadatos.color);
+  if (metadatos?.anchoPx && metadatos.altoPx) partes.push(`${metadatos.anchoPx} × ${metadatos.altoPx} px`);
+  partes.push(formatearPeso(bytes));
+  return partes.join(" · ");
+}
+
+export const LARGO_TEXTO_RECORTADO = 60;
+
+/** Reverso de calendario o texto para el resumen: "Calendario 2027" o "“Oración a…”" recortado. */
+export function textoReverso(reverso: { tipo: "calendario"; anio: number } | { tipo: "texto"; texto: string }): string {
+  if (reverso.tipo === "calendario") return `Calendario ${reverso.anio}`;
+  const texto = reverso.texto.replace(/\s+/g, " ").trim();
+  const recortado =
+    texto.length > LARGO_TEXTO_RECORTADO ? `${texto.slice(0, LARGO_TEXTO_RECORTADO - 1).trimEnd()}…` : texto;
+  return `Texto: “${recortado}”`;
+}

@@ -4,10 +4,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/lib/api-client";
 import { elegirAtributo, eleccionesDeVariante, resolverSelectores, type Elecciones } from "@/lib/catalogo/atributos";
+import type { ReversoElegido } from "@/lib/archivos";
 import type { Producto, Variante } from "@/lib/catalogo/schema";
+import { aniosCalendario, medidaEsperadaDe, reglasDe, validarArchivo, type Advertencia } from "@/lib/pedidos/archivo-linea";
+import { resolverMedida } from "@/lib/pedidos/cotizacion";
 import { formatearM } from "@/lib/pedidos/formato";
 import { especificacionesDe, evaluarLinea } from "@/lib/pedidos/linea";
-import { cantidadSchema, lineaSchema, type LineaInput } from "@/lib/validation/pedidos";
+import { cantidadSchema, lineaSchema, type LineaInput, type ReversoInput } from "@/lib/validation/pedidos";
 import type { LineaPedido, PublicArchivo } from "@/lib/pedidos-api";
 import { useAgregarItem, useBorrador, useEditarItem } from "./use-pedidos";
 import { useProductos } from "./use-productos";
@@ -23,7 +26,8 @@ export interface Campos {
 }
 
 export type CampoEditor =
-  | "archivoId"
+  | "archivos.frente"
+  | "archivos.reverso"
   | "productoId"
   | "varianteId"
   | "medida.ancho"
@@ -35,7 +39,8 @@ export type CampoEditor =
 export type Errores = Partial<Record<CampoEditor, string>>;
 
 const CAMPOS: CampoEditor[] = [
-  "archivoId",
+  "archivos.frente",
+  "archivos.reverso",
   "productoId",
   "varianteId",
   "medida.ancho",
@@ -45,6 +50,11 @@ const CAMPOS: CampoEditor[] = [
   "descripcion",
 ];
 const esCampo = (ruta: string): ruta is CampoEditor => (CAMPOS as string[]).includes(ruta);
+/** Ruta de un error (zod o servidor) al campo del editor: "archivos.reverso.texto" → "archivos.reverso". */
+const campoDe = (ruta: string): CampoEditor | null => {
+  const campo = ruta.startsWith("archivos.reverso") ? "archivos.reverso" : ruta;
+  return esCampo(campo) ? campo : null;
+};
 
 /** "1,000" o "1 000" → 1000. Vacío o inválido → NaN. */
 const aEntero = (valor: string) => {
@@ -85,10 +95,39 @@ function medidaCapturada(variante: Variante, medida: Campos["medida"]) {
   return { ancho, alto: aDecimal(medida.alto) };
 }
 
+/**
+ * El reverso que aplica a la variante: ninguno con `no_aplica`; con `opcional`,
+ * "sin reverso" mientras no elija otra cosa; con `obligatorio`, null hasta que elija.
+ */
+function reversoDe(variante: Variante | null, elegido: ReversoElegido | null): ReversoElegido | null {
+  const cara = variante?.caras.reverso;
+  if (!cara || cara === "no_aplica") return null;
+  if (cara === "obligatorio") return elegido?.tipo === "ninguno" ? null : elegido;
+  return elegido ?? { tipo: "ninguno" };
+}
+
+interface ArchivosEditor {
+  frente: PublicArchivo | null;
+  reverso: ReversoElegido | null; // ya resuelto con reversoDe
+  archivoReverso: PublicArchivo | null;
+}
+
+function reversoInput({ reverso, archivoReverso }: ArchivosEditor): ReversoInput | null {
+  switch (reverso?.tipo) {
+    case undefined:
+    case "ninguno":
+      return null;
+    case "archivo":
+      return archivoReverso ? { tipo: "archivo", archivoId: archivoReverso.id } : null;
+    default:
+      return reverso;
+  }
+}
+
 /** Lleva los campos del formulario a la forma de la API. */
-function aLineaInput(campos: Campos, variante: Variante | null, archivoId: string): LineaInput {
+function aLineaInput(campos: Campos, variante: Variante | null, archivos: ArchivosEditor): LineaInput {
   return {
-    archivoId,
+    archivos: { frente: archivos.frente?.id ?? null, reverso: reversoInput(archivos) },
     descripcion: campos.descripcion,
     productoId: campos.productoId ?? "",
     varianteId: variante?.varianteId ?? "",
@@ -99,8 +138,8 @@ function aLineaInput(campos: Campos, variante: Variante | null, archivoId: strin
 }
 
 /**
- * Estado del editor de una línea: producto, atributos, medida, acabados, cantidad
- * y cotización en vivo. Sin `itemId` agrega una línea (con `productoInicial`, p. ej.
+ * Estado del editor de una línea: producto, atributos, medida, archivos (frente y
+ * reverso, con sus advertencias en vivo), acabados, cantidad y cotización en vivo. Sin `itemId` agrega una línea (con `productoInicial`, p. ej.
  * desde un banner, llega con el producto elegido); con él edita esa línea.
  */
 export function useEditorItem({ itemId, productoInicial }: { itemId?: string; productoInicial?: string } = {}) {
@@ -111,6 +150,8 @@ export function useEditorItem({ itemId, productoInicial }: { itemId?: string; pr
   const editarItem = useEditarItem();
 
   const [archivo, setArchivo] = useState<PublicArchivo | null>(null);
+  const [archivoReverso, setArchivoReverso] = useState<PublicArchivo | null>(null);
+  const [reversoElegido, setReversoElegido] = useState<ReversoElegido | null>(null);
   const [campos, setCampos] = useState<Campos | null>(null);
   const [errores, setErrores] = useState<Errores>({});
   const [errorGuardar, setErrorGuardar] = useState<string>();
@@ -120,10 +161,17 @@ export function useEditorItem({ itemId, productoInicial }: { itemId?: string; pr
   const subida = useSubirArchivo({
     onSubido: (nuevo) => {
       setArchivo(nuevo);
-      setErrores((actual) => ({ ...actual, archivoId: undefined }));
+      setErrores((actual) => ({ ...actual, "archivos.frente": undefined }));
     },
   });
-  const subiendo = subida.subiendo !== null;
+  const subidaReverso = useSubirArchivo({
+    onSubido: (nuevo) => {
+      setArchivoReverso(nuevo);
+      setErrores((actual) => ({ ...actual, "archivos.reverso": undefined }));
+    },
+  });
+  const subiendo = subida.subiendo !== null || subidaReverso.subiendo !== null;
+  const anios = useMemo(() => aniosCalendario(), []);
 
   const productos = useMemo(() => tienda?.productos ?? [], [tienda]);
 
@@ -139,7 +187,14 @@ export function useEditorItem({ itemId, productoInicial }: { itemId?: string; pr
     if (!datosBorrador) return;
     const linea = datosBorrador.pedido.productos.find((l) => l.lineaId === itemId);
     if (!linea) return setNoEsta(true);
-    setArchivo(datosBorrador.archivos[linea.archivoId] ?? null);
+    const { frente, reverso } = linea.archivos;
+    setArchivo(datosBorrador.archivos[frente?.archivoId ?? ""] ?? null);
+    if (reverso?.tipo === "archivo") {
+      setReversoElegido({ tipo: "archivo" });
+      setArchivoReverso(datosBorrador.archivos[reverso.archivoId] ?? null);
+    } else {
+      setReversoElegido(reverso);
+    }
     if (!tienda.productos.some((p) => p._id === linea.productoId)) {
       setErrores({ productoId: linea.problema ?? `${linea.nombre} ya no se vende en línea` });
       return setCampos({ ...camposDeLinea(linea), productoId: null });
@@ -163,12 +218,14 @@ export function useEditorItem({ itemId, productoInicial }: { itemId?: string; pr
     () => (producto && variante ? especificacionesDe(producto, variante.varianteId) : []),
     [producto, variante],
   );
+  const reverso = reversoDe(variante, reversoElegido);
+  const archivos: ArchivosEditor = { frente: archivo, reverso, archivoReverso };
 
   // Cotización en vivo: la misma evaluación que usa el servidor. Sin cantidad válida
   // se cotiza la cantidad mínima para mostrar el importe unitario.
   const vivo = useMemo(() => {
     if (!campos || !variante) return null;
-    const input = aLineaInput(campos, variante, archivo?.id ?? "");
+    const input = aLineaInput(campos, variante, { frente: null, reverso: null, archivoReverso: null });
     if (input.medida && (Number.isNaN(input.medida.ancho) || Number.isNaN(input.medida.alto))) return null;
     const cantidad = cantidadSchema.safeParse(input.cantidad);
     const evaluacion = evaluarLinea(productos, {
@@ -179,7 +236,21 @@ export function useEditorItem({ itemId, productoInicial }: { itemId?: string; pr
       cantidad: cantidad.success ? cantidad.data : variante.cantidadMinima,
     });
     return { evaluacion, cantidadValida: cantidad.success };
-  }, [campos, variante, archivo, productos]);
+  }, [campos, variante, productos]);
+
+  // Advertencias de cada archivo con las reglas de la variante elegida: cambian al
+  // cambiar de variante o de medida, sin volver a subir. Sin medida capturada (variable)
+  // solo se revisan formato, peso y color.
+  const lineaViva = vivo?.evaluacion.ok ? vivo.evaluacion.linea : null;
+  const medidaViva = lineaViva?.medida ?? (variante?.medida.tipo === "fija" ? resolverMedida(variante, null) : null);
+  const advertencias = useMemo(() => {
+    const vacias = { frente: [] as Advertencia[], reverso: [] as Advertencia[] };
+    if (!producto || !variante) return vacias;
+    const reglas = reglasDe(producto, variante);
+    const esperada = medidaViva ? medidaEsperadaDe(variante, medidaViva) : null;
+    const de = (a: PublicArchivo | null) => (a ? validarArchivo(reglas, esperada, a).advertencias : []);
+    return { frente: de(archivo), reverso: reverso?.tipo === "archivo" ? de(archivoReverso) : [] };
+  }, [producto, variante, medidaViva, archivo, archivoReverso, reverso?.tipo]);
 
   // Los errores de medida se muestran en cuanto se detectan, sin esperar a guardar.
   const errorVivo =
@@ -200,7 +271,12 @@ export function useEditorItem({ itemId, productoInicial }: { itemId?: string; pr
   function elegirProducto(productoId: string) {
     if (!campos || productoId === campos.productoId) return;
     setCampos({ ...camposVacios(productoId), cantidad: campos.cantidad, descripcion: campos.descripcion });
-    setErrores(({ archivoId }) => (archivoId ? { archivoId } : {}));
+    setErrores(({ "archivos.frente": frente }) => (frente ? { "archivos.frente": frente } : {}));
+  }
+
+  function elegirReverso(valor: ReversoElegido) {
+    setReversoElegido(valor);
+    setErrores((actual) => ({ ...actual, "archivos.reverso": undefined }));
   }
 
   function elegir(llave: string, valor: string) {
@@ -220,21 +296,28 @@ export function useEditorItem({ itemId, productoInicial }: { itemId?: string; pr
     if (!campos || subiendo) return;
     setErrorGuardar(undefined);
 
-    const input = aLineaInput(campos, variante, archivo?.id ?? "");
+    const input = aLineaInput(campos, variante, archivos);
     const nuevos: Errores = {};
-    if (!archivo) nuevos.archivoId = "Sube el archivo que quieres imprimir";
     if (!producto) nuevos.productoId ??= "Elige un producto";
     else if (!variante) nuevos.varianteId = "Elige todas las opciones del producto";
+    else {
+      if (!archivo && reglasDe(producto, variante).requiereArchivo) {
+        nuevos["archivos.frente"] = "Sube el archivo que quieres imprimir";
+      }
+      if (reverso?.tipo === "archivo" && !archivoReverso) nuevos["archivos.reverso"] = "Sube el archivo del reverso";
+    }
 
     const validacion = lineaSchema.safeParse(input);
     if (!validacion.success) {
       for (const issue of validacion.error.issues) {
-        const ruta = issue.path.join(".");
-        if (esCampo(ruta) && !["archivoId", "productoId", "varianteId"].includes(ruta)) nuevos[ruta] ??= issue.message;
+        const campo = campoDe(issue.path.join("."));
+        if (campo && !["productoId", "varianteId"].includes(campo)) nuevos[campo] ??= issue.message;
       }
     } else if (variante) {
-      const evaluacion = evaluarLinea(productos, validacion.data);
-      if (!evaluacion.ok) nuevos[evaluacion.campo] ??= evaluacion.mensaje;
+      // La misma evaluación que el servidor, con los archivos que ya subió (frente y reverso).
+      const disponibles = Object.fromEntries([archivo, archivoReverso].filter((a) => a !== null).map((a) => [a!.id, a!]));
+      const evaluacion = evaluarLinea(productos, validacion.data, disponibles);
+      if (!evaluacion.ok && esCampo(evaluacion.campo)) nuevos[evaluacion.campo] ??= evaluacion.mensaje;
     }
     setErrores(nuevos);
     if (Object.keys(nuevos).length > 0) return;
@@ -248,9 +331,13 @@ export function useEditorItem({ itemId, productoInicial }: { itemId?: string; pr
       setGuardando(false);
       if (!(e instanceof ApiError)) return setErrorGuardar("Ocurrió un error inesperado");
       const delServidor: Errores = {};
-      for (const [ruta, mensaje] of Object.entries(e.fields)) if (esCampo(ruta)) delServidor[ruta] = mensaje;
+      for (const [ruta, mensaje] of Object.entries(e.fields)) {
+        const campo = campoDe(ruta);
+        if (campo) delServidor[campo] ??= mensaje;
+      }
       setErrores(delServidor);
-      if (Object.keys(delServidor).length === 0) setErrorGuardar(e.message);
+      // Un campo sin lugar en el editor se muestra como error general.
+      if (Object.keys(delServidor).length === 0) setErrorGuardar(Object.values(e.fields)[0] ?? e.message);
     }
   }
 
@@ -263,10 +350,16 @@ export function useEditorItem({ itemId, productoInicial }: { itemId?: string; pr
     variante,
     especificaciones,
     archivo,
+    archivoReverso,
+    reverso,
+    elegirReverso,
+    anios,
+    advertencias,
     errores: erroresVisibles,
     errorGeneral,
     guardando,
     subida,
+    subidaReverso,
     subiendo,
     vivo,
     actualizar,

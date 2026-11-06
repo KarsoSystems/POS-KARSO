@@ -3,7 +3,10 @@ import {
   formatearCm,
   formatearMxn,
   formatearNumero,
+  formatearPeso,
   textoCantidad,
+  textoDatosArchivo,
+  textoReverso,
   textoMedida,
   textoPrecioVariante,
   unidadCantidad,
@@ -63,5 +66,42 @@ describe("textos de KARSO", () => {
     expect(textoPrecioVariante({ ...base, precio: 500, volumen: "unidad", precioPor: "metro_lineal" })).toBe(
       "$500.00 por metro lineal",
     );
+  });
+});
+
+describe("datos del archivo", () => {
+  it("peso en KB o MB", () => {
+    expect(formatearPeso(46_000)).toBe("45 KB");
+    expect(formatearPeso(100)).toBe("1 KB");
+    expect(formatearPeso(3_355_443)).toBe("3.2 MB");
+  });
+
+  it("imagen: formato, color, píxeles y peso", () => {
+    expect(
+      textoDatosArchivo({
+        extension: "tiff",
+        bytes: 3_355_443,
+        metadatos: { anchoPx: 1098, altoPx: 661, color: "CMYK" },
+      }),
+    ).toBe("TIFF · CMYK · 1098 × 661 px · 3.2 MB");
+  });
+
+  it("vector, ilegible o pendiente: formato y peso", () => {
+    expect(textoDatosArchivo({ extension: "pdf", bytes: 3_355_443, metadatos: { anchoPx: null, altoPx: null, color: null } })).toBe(
+      "PDF · 3.2 MB",
+    );
+    expect(textoDatosArchivo({ extension: "jpg", bytes: 2048, metadatos: null })).toBe("JPG · 2 KB");
+  });
+});
+
+describe("textoReverso", () => {
+  it("calendario y texto corto", () => {
+    expect(textoReverso({ tipo: "calendario", anio: 2027 })).toBe("Calendario 2027");
+    expect(textoReverso({ tipo: "texto", texto: "Gracias  por\nsu compra" })).toBe("Texto: “Gracias por su compra”");
+  });
+
+  it("recorta el texto largo a 60 caracteres con …", () => {
+    const resultado = textoReverso({ tipo: "texto", texto: "a".repeat(500) });
+    expect(resultado).toBe(`Texto: “${"a".repeat(59)}…”`);
   });
 });

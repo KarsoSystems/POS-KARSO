@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import type { Producto } from "@/lib/catalogo/schema";
 import { calcularTotales } from "@/lib/pedidos/cotizacion";
+import { entradaDeArchivos, idsDeArchivos, type ArchivoDisponible } from "@/lib/pedidos/archivo-linea";
 import { evaluarLinea } from "@/lib/pedidos/linea";
-import { MAX_ITEMS_POR_PEDIDO, type LineaData } from "@/lib/validation/pedidos";
-import { archivoKey, toPublicArchivo, type PublicArchivo } from "@/server/domain/archivo";
+import { MAX_ITEMS_POR_PEDIDO, type ArchivosLineaData, type LineaData } from "@/lib/validation/pedidos";
+import { toPublicArchivo, type PublicArchivo } from "@/server/domain/archivo";
 import type { LineaPedido, Pedido } from "@/server/domain/pedido";
 import { apiError } from "@/server/http/responses";
 import {
@@ -11,7 +12,7 @@ import {
   EstadoPedidoInvalidoError,
   pedidoRepository,
 } from "@/server/repositories";
-import { fileStorage } from "@/server/storage";
+import { borrarArchivo } from "./archivos-pedido";
 
 // `productos` es el catálogo completo del mock del panel (sin filtrar), para que
 // los problemas distingan "ya no está disponible" de "solo se vende en mostrador".
@@ -23,16 +24,37 @@ const datosDe = (linea: LineaPedido) => ({
   medida: linea.medida.tipo === "variable" ? { ancho: linea.medida.ancho, alto: linea.medida.alto } : null,
   especificaciones: linea.especificaciones.map((e) => e.id),
   cantidad: linea.cantidad,
+  archivos: entradaDeArchivos(linea.archivos),
 });
 
+/** Archivos del usuario con esos ids, por id. Los de otro usuario no aparecen. */
+async function disponiblesDe(userId: string, ids: string[]): Promise<Record<string, ArchivoDisponible>> {
+  const archivos = await Promise.all([...new Set(ids)].map((id) => archivoRepository.findById(id)));
+  return Object.fromEntries(
+    archivos.filter((a) => a !== null && a.userId === userId).map((a) => [a!.id, toPublicArchivo(a!)]),
+  );
+}
+
+/** Ids de archivo que trae la entrada de una línea. */
+function idsDeEntrada(archivos: ArchivosLineaData): string[] {
+  const ids = archivos.frente ? [archivos.frente] : [];
+  if (archivos.reverso?.tipo === "archivo") ids.push(archivos.reverso.archivoId);
+  return ids;
+}
+
 /**
- * Recalcula las líneas del borrador con el catálogo vigente. Si una línea ya no es
- * válida (variante inactiva, solo de mostrador, medida fuera de rango…), conserva
- * su último importe y marca `problema`; la confirmación queda bloqueada hasta corregirla.
+ * Recalcula las líneas del borrador con el catálogo vigente y las advertencias de
+ * sus archivos con las reglas vigentes. Si una línea ya no es válida (variante
+ * inactiva, medida fuera de rango, calendario de un año que ya pasó…), conserva su
+ * último importe y marca `problema`; la confirmación queda bloqueada hasta corregirla.
  */
-export function recalcularBorrador(pedido: Pedido, productos: Producto[]): void {
+export async function recalcularBorrador(pedido: Pedido, productos: Producto[]): Promise<void> {
+  const disponibles = await disponiblesDe(
+    pedido.userId,
+    pedido.productos.flatMap((linea) => idsDeArchivos(linea.archivos)),
+  );
   for (const linea of pedido.productos) {
-    const evaluacion = evaluarLinea(productos, datosDe(linea));
+    const evaluacion = evaluarLinea(productos, datosDe(linea), disponibles);
     if (evaluacion.ok) {
       Object.assign(linea, evaluacion.linea, { problema: null });
     } else {
@@ -44,7 +66,7 @@ export function recalcularBorrador(pedido: Pedido, productos: Producto[]): void 
 
 /** Datos públicos de los archivos que usan las líneas, por id (para miniaturas y nombres). */
 export async function archivosDe(pedido: Pedido): Promise<Record<string, PublicArchivo>> {
-  const ids = [...new Set(pedido.productos.map((linea) => linea.archivoId))];
+  const ids = [...new Set(pedido.productos.flatMap((linea) => idsDeArchivos(linea.archivos)))];
   const archivos = await Promise.all(ids.map((id) => archivoRepository.findById(id)));
   return Object.fromEntries(
     archivos.filter((a) => a !== null).map((a) => [a.id, toPublicArchivo(a)]),
@@ -55,12 +77,11 @@ export async function archivosDe(pedido: Pedido): Promise<Record<string, PublicA
 export async function liberarArchivoSiNoSeUsa(userId: string, archivoId: string): Promise<void> {
   const borrador = await pedidoRepository.findBorrador(userId);
   const pedidos = [...(borrador ? [borrador] : []), ...(await pedidoRepository.listByUser(userId))];
-  if (pedidos.some((p) => p.productos.some((linea) => linea.archivoId === archivoId))) return;
+  if (pedidos.some((p) => p.productos.some((linea) => idsDeArchivos(linea.archivos).includes(archivoId)))) return;
 
   const archivo = await archivoRepository.findById(archivoId);
   if (!archivo || archivo.userId !== userId) return;
-  await archivoRepository.delete(archivo.id);
-  await fileStorage.delete(archivoKey(archivo));
+  await borrarArchivo(archivo);
 }
 
 export class MaximoItemsError extends Error {
@@ -90,10 +111,10 @@ export async function cambiarBorrador(
   for (let intento = 0; ; intento++) {
     const borrador = await pedidoRepository.crearBorrador(userId);
     try {
-      return await pedidoRepository.update(borrador.id, (pedido) => {
+      return await pedidoRepository.update(borrador.id, async (pedido) => {
         if (pedido.estado !== "borrador") throw new EstadoPedidoInvalidoError(pedido.id, pedido.estado);
         cambiar(pedido);
-        recalcularBorrador(pedido, productos);
+        await recalcularBorrador(pedido, productos);
       });
     } catch (error) {
       if (!(error instanceof EstadoPedidoInvalidoError) || intento > 0) throw error;
@@ -102,24 +123,17 @@ export async function cambiarBorrador(
 }
 
 /**
- * Valida una línea contra el catálogo y que el archivo sea del usuario. Devuelve
- * la línea lista (sin lineaId) o la respuesta de error 422 VALIDACION.
+ * Valida una línea contra el catálogo y sus caras (archivos del usuario y ya
+ * subidos, reverso según la variante). Devuelve la línea lista (sin lineaId), con
+ * las advertencias de cada archivo, o la respuesta de error 422 VALIDACION.
  */
 export async function prepararLinea(
   data: LineaData,
   userId: string,
   productos: Producto[],
 ): Promise<{ linea: Omit<LineaPedido, "lineaId">; response?: never } | { linea?: never; response: NextResponse }> {
-  const archivo = await archivoRepository.findById(data.archivoId);
-  if (!archivo || archivo.userId !== userId) {
-    return {
-      response: apiError(422, "VALIDACION", "Revisa los datos marcados", {
-        archivoId: "El archivo no existe",
-      }),
-    };
-  }
-
-  const evaluacion = evaluarLinea(productos, data);
+  const disponibles = await disponiblesDe(userId, idsDeEntrada(data.archivos));
+  const evaluacion = evaluarLinea(productos, data, disponibles);
   if (!evaluacion.ok) {
     return {
       response: apiError(422, "VALIDACION", "Revisa los datos marcados", {
@@ -129,7 +143,7 @@ export async function prepararLinea(
   }
 
   return {
-    linea: { ...evaluacion.linea, archivoId: data.archivoId, descripcion: data.descripcion, problema: null },
+    linea: { ...evaluacion.linea, descripcion: data.descripcion, problema: null },
   };
 }
 
@@ -157,8 +171,8 @@ export class ItemsConProblemasError extends Error {
  * dentro del lock de `confirmar`: lo que queda en el pedido son los precios
  * congelados.
  */
-export function prepararConfirmacion(pedido: Pedido, productos: Producto[]): void {
-  recalcularBorrador(pedido, productos);
+export async function prepararConfirmacion(pedido: Pedido, productos: Producto[]): Promise<void> {
+  await recalcularBorrador(pedido, productos);
   if (pedido.productos.length === 0) throw new PedidoVacioError();
   if (pedido.productos.some((linea) => linea.problema !== null)) throw new ItemsConProblemasError();
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, rename, rm, stat } from "node:fs/promises";
+import { copyFile, mkdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -27,8 +27,9 @@ export function createLocalFileStorage(dir: string = resolveUploadsDir()): FileS
   return {
     async put(key, data) {
       const destino = ruta(key);
-      await mkdir(root, { recursive: true });
-      const tmp = path.join(root, `.${key}.${randomUUID()}.tmp`);
+      const carpeta = path.dirname(destino);
+      await mkdir(carpeta, { recursive: true });
+      const tmp = path.join(carpeta, `.${path.basename(destino)}.${randomUUID()}.tmp`);
       try {
         await pipeline(
           Readable.fromWeb(data as NodeReadableStream<Uint8Array>),
@@ -50,6 +51,21 @@ export function createLocalFileStorage(dir: string = resolveUploadsDir()): FileS
         throw error;
       }
       return Readable.toWeb(createReadStream(origen)) as ReadableStream<Uint8Array>;
+    },
+
+    async copy(origen, destino) {
+      const desde = ruta(origen);
+      const hacia = ruta(destino);
+      const carpeta = path.dirname(hacia);
+      await mkdir(carpeta, { recursive: true });
+      const tmp = path.join(carpeta, `.${path.basename(hacia)}.${randomUUID()}.tmp`);
+      try {
+        await copyFile(desde, tmp);
+        await rename(tmp, hacia);
+      } catch (error) {
+        await rm(tmp, { force: true });
+        throw error;
+      }
     },
 
     async delete(key) {

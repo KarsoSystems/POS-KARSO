@@ -1,3 +1,4 @@
+import { idsDeArchivos } from "@/lib/pedidos/archivo-linea";
 import { lineaSchema } from "@/lib/validation/pedidos";
 import { requireSessionUser } from "@/server/auth/guards";
 import { productosParaRuta } from "@/server/tienda";
@@ -29,18 +30,17 @@ export async function PUT(request: Request, { params }: Contexto) {
   const preparado = await prepararLinea(body.data, guard.user.id, productos);
   if (preparado.response) return preparado.response;
 
-  let archivoAnterior: string | null = null;
+  let anteriores: string[] = [];
   try {
     const pedido = await cambiarBorrador(guard.user.id, productos, (borrador) => {
       const index = borrador.productos.findIndex((linea) => linea.lineaId === itemId);
       if (index === -1) throw new ItemNoEncontradoError(itemId);
-      archivoAnterior = borrador.productos[index].archivoId;
+      anteriores = idsDeArchivos(borrador.productos[index].archivos);
       borrador.productos[index] = { lineaId: itemId, ...preparado.linea };
     });
-    // Si se cambió el archivo, el anterior se borra cuando ya nadie lo usa.
-    if (archivoAnterior && archivoAnterior !== preparado.linea.archivoId) {
-      await liberarArchivoSiNoSeUsa(guard.user.id, archivoAnterior);
-    }
+    // Si se cambió un archivo (frente o reverso), el anterior se borra cuando ya nadie lo usa.
+    const actuales = idsDeArchivos(preparado.linea.archivos);
+    for (const id of anteriores) if (!actuales.includes(id)) await liberarArchivoSiNoSeUsa(guard.user.id, id);
     return respuestaPedido(pedido);
   } catch (error) {
     if (error instanceof ItemNoEncontradoError) return noEncontrado();
@@ -57,15 +57,15 @@ export async function DELETE(_request: Request, { params }: Contexto) {
   if (response) return response;
   const { productos } = mock;
 
-  let archivoId: string | null = null;
+  let ids: string[] = [];
   try {
     const pedido = await cambiarBorrador(guard.user.id, productos, (borrador) => {
       const linea = borrador.productos.find((l) => l.lineaId === itemId);
       if (!linea) throw new ItemNoEncontradoError(itemId);
-      archivoId = linea.archivoId;
+      ids = idsDeArchivos(linea.archivos);
       borrador.productos = borrador.productos.filter((l) => l.lineaId !== itemId);
     });
-    if (archivoId) await liberarArchivoSiNoSeUsa(guard.user.id, archivoId);
+    for (const id of ids) await liberarArchivoSiNoSeUsa(guard.user.id, id);
     return respuestaPedido(pedido);
   } catch (error) {
     if (error instanceof ItemNoEncontradoError) return noEncontrado();

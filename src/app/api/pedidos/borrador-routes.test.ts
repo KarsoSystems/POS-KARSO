@@ -19,11 +19,11 @@ const env = vi.hoisted(() => {
 
 vi.mock("next/headers", () => import("@/test/next-headers-mock"));
 
-import { POST as subir } from "@/app/api/archivos/route";
+import { fixture, solicitarSubida, subirArchivoPrueba } from "@/test/archivos";
 import type { ProductosArchivo } from "@/lib/catalogo/schema";
 import { PRODUCTOS_PATH } from "@/server/mock-panel";
 import { jar } from "@/test/next-headers-mock";
-import { iniciarSesionActiva } from "@/test/sesion";
+import { cambiarSesion, iniciarSesionActiva } from "@/test/sesion";
 import { GET as getBorrador } from "./borrador/route";
 import { POST as agregar } from "./borrador/items/route";
 import { DELETE as quitar, PUT as editar } from "./borrador/items/[itemId]/route";
@@ -31,6 +31,9 @@ import { DELETE as quitar, PUT as editar } from "./borrador/items/[itemId]/route
 // Ids del mock del panel (config/mock-panel/productos.json).
 const TARJETA = "6720a1f0c1a2b3c4d5e60201";
 const TARJETA_COUCHE = "6720a1f0c1a2b3c4d5e60211";
+const TARJETA_LAMINADA = "6720a1f0c1a2b3c4d5e60212"; // reverso obligatorio
+const VOLANTE = "6720a1f0c1a2b3c4d5e60203";
+const VOLANTE_BOND = "6720a1f0c1a2b3c4d5e60233"; // reverso no_aplica
 const CREDENCIAL_PVC = "6720a1f0c1a2b3c4d5e60218";
 const LONA = "6720a1f0c1a2b3c4d5e60202";
 const LONA_720 = "6720a1f0c1a2b3c4d5e60221";
@@ -47,16 +50,16 @@ const json = (method: string, body: unknown) =>
   });
 const lineaCtx = (itemId: string) => ({ params: Promise.resolve({ itemId }) });
 
-async function subirArchivo(nombre = "tarjeta.jpg"): Promise<string> {
-  const form = new FormData();
-  form.append("archivo", new File(["imagen"], nombre));
-  const res = await subir(new Request("http://localhost/api/archivos", { method: "POST", body: form }));
-  return (await res.json()).archivo.id;
+/** Sube un archivo (por omisión, un "jpg" que no es imagen: queda con la advertencia `ilegible`). */
+async function subirArchivo(nombre = "tarjeta.jpg", contenido: Uint8Array | string = "imagen"): Promise<string> {
+  return (await subirArchivoPrueba(nombre, contenido)).id;
 }
+
+const frente = (archivoId: string) => ({ frente: archivoId, reverso: null });
 
 /** Tarjeta couché × 2 millares con suaje: $310.00. */
 const tarjeta = (archivoId: string, cambios: Record<string, unknown> = {}) => ({
-  archivoId,
+  archivos: frente(archivoId),
   productoId: TARJETA,
   varianteId: TARJETA_COUCHE,
   especificaciones: [SUAJE],
@@ -66,7 +69,7 @@ const tarjeta = (archivoId: string, cambios: Record<string, unknown> = {}) => ({
 
 /** Lona 720 dpi de 2.00 × 1.50 m × 2 con ojillos: $414.00. */
 const lona = (archivoId: string, cambios: Record<string, unknown> = {}) => ({
-  archivoId,
+  archivos: frente(archivoId),
   productoId: LONA,
   varianteId: LONA_720,
   medida: { ancho: 2, alto: 1.5 },
@@ -76,7 +79,7 @@ const lona = (archivoId: string, cambios: Record<string, unknown> = {}) => ({
 });
 
 const readJson = async (file: string) => JSON.parse(await readFile(path.join(env.dataDir, file), "utf8"));
-const enUploads = async () => readdir(env.uploadsDir).catch(() => []);
+const enUploads = async () => readdir(path.join(env.uploadsDir, "temporal")).catch(() => []);
 
 async function editarProductos(cambiar: (archivo: ProductosArchivo) => void) {
   const archivo = JSON.parse(await readFile(env.productosPath, "utf8"));
@@ -189,7 +192,7 @@ describe("GET /api/pedidos/borrador", () => {
     errorSpy.mockRestore();
   });
 
-  it("un orders.json de la SPEC 02 (versión 1) se descarta sin romper", async () => {
+  it("un orders.json de la SPEC 02 (versión 1) se descarta sin romper y se reinicia en la versión 3", async () => {
     await iniciarSesionActiva();
     const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
     await mkdir(env.dataDir, { recursive: true });
@@ -200,7 +203,7 @@ describe("GET /api/pedidos/borrador", () => {
     const res = await getBorrador();
     expect(res.status).toBe(200);
     expect((await res.json()).pedido.productos).toEqual([]);
-    expect(await readJson("orders.json")).toMatchObject({ version: 2, ultimoFolio: 0 });
+    expect(await readJson("orders.json")).toMatchObject({ version: 3, ultimoFolio: 0 });
     aviso.mockRestore();
   });
 });
@@ -208,7 +211,7 @@ describe("GET /api/pedidos/borrador", () => {
 describe("POST /api/pedidos/borrador/items", () => {
   it("una línea válida → 201 con la copia de la variante y la cotización del servidor", async () => {
     await iniciarSesionActiva();
-    const archivoId = await subirArchivo("tarjeta.png");
+    const archivoId = await subirArchivo("tarjeta.tiff");
     // Un importe mandado por el cliente se ignora: el servidor calcula.
     const res = await agregar(json("POST", { ...tarjeta(archivoId), subtotal: 1 }));
     expect(res.status).toBe(201);
@@ -216,7 +219,17 @@ describe("POST /api/pedidos/borrador/items", () => {
     const { pedido, archivos } = await res.json();
     expect(pedido.productos).toHaveLength(1);
     expect(pedido.productos[0]).toMatchObject({
-      archivoId,
+      archivos: {
+        frente: {
+          archivoId,
+          nombreOriginal: "tarjeta.tiff",
+          formato: "tiff",
+          pesoMB: 0,
+          validado: false,
+          advertencias: [{ codigo: "ilegible", mensaje: "No se pudo leer la imagen; mostrador la revisará" }],
+        },
+        reverso: null,
+      },
       descripcion: "",
       productoId: TARJETA,
       varianteId: TARJETA_COUCHE,
@@ -238,7 +251,7 @@ describe("POST /api/pedidos/borrador/items", () => {
     });
     expect(pedido.productos[0].lineaId).toEqual(expect.any(String));
     expect(pedido).toMatchObject({ subtotal: 310, descuento: 0, baseIva: 310, tasaIva: 0, iva: 0, total: 310 });
-    expect(archivos[archivoId]).toMatchObject({ nombreOriginal: "tarjeta.png", previsualizable: true });
+    expect(archivos[archivoId]).toMatchObject({ nombreOriginal: "tarjeta.tiff", estado: "subido" });
     expect((await readJson("orders.json")).pedidos[0].productos[0].subtotal).toBe(310);
   });
 
@@ -292,7 +305,7 @@ describe("POST /api/pedidos/borrador/items", () => {
     await iniciarSesionActiva("beto@ejemplo.com");
     const res = await agregar(json("POST", tarjeta(ajeno)));
     expect(res.status).toBe(422);
-    expect((await res.json()).error.fields).toEqual({ archivoId: "El archivo no existe" });
+    expect((await res.json()).error.fields).toEqual({ "archivos.frente": "El archivo no existe" });
   });
 
   it("la línea 21 → 409 'Máximo 20 ítems por pedido'", async () => {
@@ -308,6 +321,178 @@ describe("POST /api/pedidos/borrador/items", () => {
       message: "Máximo 20 ítems por pedido",
     });
     expect((await readJson("orders.json")).pedidos[0].productos).toHaveLength(20);
+  });
+});
+
+describe("frente y reverso (SPEC 05)", () => {
+  const anio = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Monterrey", year: "numeric" }).format(new Date()));
+  const conReverso = (archivoId: string, reverso: unknown, cambios: Record<string, unknown> = {}) =>
+    tarjeta(archivoId, { archivos: { frente: archivoId, reverso }, ...cambios });
+  const campos = async (res: Response) => (await res.json()).error.fields;
+
+  it("laminada sin reverso → 422 'Elige el reverso'", async () => {
+    await iniciarSesionActiva();
+    const res = await agregar(json("POST", tarjeta(await subirArchivo(), { varianteId: TARJETA_LAMINADA })));
+    expect(res.status).toBe(422);
+    expect(await campos(res)).toEqual({ "archivos.reverso": "Elige el reverso" });
+  });
+
+  it("volante bond con reverso → 422", async () => {
+    await iniciarSesionActiva();
+    const archivoId = await subirArchivo();
+    const res = await agregar(
+      json("POST", {
+        archivos: { frente: archivoId, reverso: { tipo: "texto", texto: "Hola" } },
+        productoId: VOLANTE,
+        varianteId: VOLANTE_BOND,
+        cantidad: 1,
+      }),
+    );
+    expect(res.status).toBe(422);
+    expect(await campos(res)).toEqual({ "archivos.reverso": "Este producto no lleva reverso" });
+  });
+
+  it("sin frente → 422", async () => {
+    await iniciarSesionActiva();
+    const res = await agregar(json("POST", tarjeta("", { archivos: { frente: null, reverso: null } })));
+    expect(res.status).toBe(422);
+    expect(await campos(res)).toEqual({ "archivos.frente": "Sube el archivo que quieres imprimir" });
+  });
+
+  it("tarjeta couché sin reverso, con archivo, con calendario del año siguiente y con texto → 201", async () => {
+    await iniciarSesionActiva();
+    const archivoId = await subirArchivo();
+    const reversoId = await subirArchivo("reverso.pdf", "%PDF");
+
+    const casos: [unknown, unknown][] = [
+      [null, null],
+      [{ tipo: "archivo", archivoId: reversoId }, { tipo: "archivo", archivoId: reversoId, formato: "pdf" }],
+      [{ tipo: "calendario", anio: anio + 1 }, { tipo: "calendario", anio: anio + 1 }],
+      [{ tipo: "texto", texto: "  Oración a San Judas  " }, { tipo: "texto", texto: "Oración a San Judas" }],
+    ];
+    for (const [reverso, guardado] of casos) {
+      const res = await agregar(json("POST", conReverso(archivoId, reverso)));
+      expect(res.status).toBe(201);
+      const { pedido } = await res.json();
+      const linea = pedido.productos.at(-1);
+      if (guardado === null) expect(linea.archivos.reverso).toBeNull();
+      else expect(linea.archivos.reverso).toMatchObject(guardado as object);
+    }
+  });
+
+  it("la laminada acepta calendario del año actual", async () => {
+    await iniciarSesionActiva();
+    const res = await agregar(
+      json("POST", conReverso(await subirArchivo(), { tipo: "calendario", anio }, { varianteId: TARJETA_LAMINADA })),
+    );
+    expect(res.status).toBe(201);
+  });
+
+  it("un año pasado y un texto de 501 caracteres → 422", async () => {
+    await iniciarSesionActiva();
+    const archivoId = await subirArchivo();
+    const pasado = await agregar(json("POST", conReverso(archivoId, { tipo: "calendario", anio: anio - 1 })));
+    expect(pasado.status).toBe(422);
+    expect(await campos(pasado)).toEqual({ "archivos.reverso": `Elige el calendario de ${anio} o ${anio + 1}` });
+
+    const largo = await agregar(json("POST", conReverso(archivoId, { tipo: "texto", texto: "a".repeat(501) })));
+    expect(largo.status).toBe(422);
+    expect(await campos(largo)).toEqual({ "archivos.reverso.texto": "El texto no puede tener más de 500 caracteres" });
+
+    const vacio = await agregar(json("POST", conReverso(archivoId, { tipo: "texto", texto: "   " })));
+    expect(await campos(vacio)).toEqual({ "archivos.reverso.texto": "Escribe el texto del reverso" });
+  });
+
+  it("un archivo que sigue pendiente → 422", async () => {
+    await iniciarSesionActiva();
+    const { archivo } = await (await solicitarSubida("tarjeta.jpg", 10)).json();
+    const res = await agregar(json("POST", tarjeta(archivo.id)));
+    expect(res.status).toBe(422);
+    expect(await campos(res)).toEqual({ "archivos.frente": "El archivo aún no termina de subirse" });
+  });
+
+  it("un reverso de otro usuario → 422", async () => {
+    await iniciarSesionActiva("ana@ejemplo.com");
+    const ajeno = await subirArchivo();
+    await iniciarSesionActiva("beto@ejemplo.com");
+    const res = await agregar(json("POST", conReverso(await subirArchivo(), { tipo: "archivo", archivoId: ajeno })));
+    expect(await campos(res)).toEqual({ "archivos.reverso": "El archivo no existe" });
+  });
+
+  it("un archivo CMYK de la medida correcta queda validado", async () => {
+    await iniciarSesionActiva();
+    const archivoId = await subirArchivo("tarjeta.jpg", await fixture("tarjeta-cmyk.jpg"));
+    const { pedido } = await (await agregar(json("POST", tarjeta(archivoId)))).json();
+    expect(pedido.productos[0].archivos.frente).toMatchObject({
+      formato: "jpg",
+      color: "CMYK",
+      anchoPx: 1098,
+      altoPx: 661,
+      resolucion: 300,
+      validado: true,
+      advertencias: [],
+    });
+  });
+
+  it("un archivo RGB → 201 con validado: false y la advertencia color", async () => {
+    await iniciarSesionActiva();
+    const archivoId = await subirArchivo("tarjeta.jpg", await fixture("tarjeta-rgb.jpg"));
+    const res = await agregar(json("POST", tarjeta(archivoId)));
+    expect(res.status).toBe(201);
+    expect((await res.json()).pedido.productos[0].archivos.frente).toMatchObject({
+      color: "RGB",
+      validado: false,
+      advertencias: [{ codigo: "color", mensaje: "El archivo está en RGB; se requiere CMYK" }],
+    });
+  });
+
+  it("cambiar colorRequerido en el mock recalcula las advertencias", async () => {
+    await iniciarSesionActiva();
+    const archivoId = await subirArchivo("tarjeta.jpg", await fixture("tarjeta-rgb.jpg"));
+    await agregar(json("POST", tarjeta(archivoId)));
+
+    await editarProductos((a) => {
+      producto(a, TARJETA).archivo.colorRequerido = "cualquiera";
+    });
+    const { pedido } = await (await getBorrador()).json();
+    expect(pedido.productos[0].archivos.frente).toMatchObject({ validado: true, advertencias: [] });
+    expect((await readJson("orders.json")).pedidos[0].productos[0].archivos.frente.validado).toBe(true);
+  });
+
+  it("al recalcular, un calendario de un año que ya pasó marca problema", async () => {
+    const user = await iniciarSesionActiva();
+    await agregar(json("POST", conReverso(await subirArchivo(), { tipo: "calendario", anio })));
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date(`${anio + 1}-07-01T12:00:00Z`));
+      await cambiarSesion(user); // la sesión de 7 días ya habría vencido
+      const { pedido } = await (await getBorrador()).json();
+      expect(pedido.productos[0].problema).toBe(`Elige el calendario de ${anio + 1} o ${anio + 2}`);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("quitar la línea libera también el archivo del reverso", async () => {
+    await iniciarSesionActiva();
+    const archivoId = await subirArchivo();
+    const reversoId = await subirArchivo("reverso.pdf", "%PDF");
+    const { pedido } = await (await agregar(json("POST", conReverso(archivoId, { tipo: "archivo", archivoId: reversoId })))).json();
+    expect((await enUploads()).sort()).toEqual([`${archivoId}.jpg`, `${reversoId}.pdf`].sort());
+
+    await quitar(new Request("http://localhost"), lineaCtx(pedido.productos[0].lineaId));
+    expect(await enUploads()).toEqual([]);
+  });
+
+  it("cambiar el reverso de archivo a texto libera el archivo anterior", async () => {
+    await iniciarSesionActiva();
+    const archivoId = await subirArchivo();
+    const reversoId = await subirArchivo("reverso.pdf", "%PDF");
+    const { pedido } = await (await agregar(json("POST", conReverso(archivoId, { tipo: "archivo", archivoId: reversoId })))).json();
+
+    await editar(json("PUT", conReverso(archivoId, { tipo: "texto", texto: "Gracias" })), lineaCtx(pedido.productos[0].lineaId));
+    expect(await enUploads()).toEqual([`${archivoId}.jpg`]);
   });
 });
 

@@ -1,19 +1,20 @@
 import type { Totales } from "@/lib/pedidos/cotizacion";
 import type { EstadoPedido } from "@/lib/pedidos/formato";
-import type { LineaCotizada } from "@/lib/pedidos/linea";
+import type { LineaConArchivos } from "@/lib/pedidos/linea";
 
 // EstadoPedido, Totales y LineaCotizada viven en src/lib porque el front los usa
 // (cotización en vivo, etiquetas); se re-exportan aquí como dominio.
 export type { EstadoPedido, Totales };
 export type { EspecificacionLinea, MedidaLinea } from "@/lib/pedidos/cotizacion";
+export type { Advertencia, ArchivoLinea, ArchivosLinea, ReversoLinea } from "@/lib/pedidos/archivo-linea";
 
 /**
  * Línea del pedido con la forma de KARSO-PROMPT-v1.md 6.5: copia los datos de la
  * variante al guardarse, para que cambios del catálogo no afecten pedidos hechos.
  */
-export interface LineaPedido extends LineaCotizada {
+export interface LineaPedido extends LineaConArchivos {
   lineaId: string; // UUID
-  archivoId: string; // temporal: en la SPEC 05 pasa a archivos.frente / archivos.reverso
+  // archivos: { frente, reverso } con los datos y advertencias de cada cara (SPEC 05)
   descripcion: string; // 0–500 caracteres
   problema: string | null; // propio del demo, p. ej. "Couché 8.7 x 5 cm ya no está disponible"
 }

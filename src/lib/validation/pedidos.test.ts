@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   cantidadSchema,
   descripcionSchema,
-  esPrevisualizable,
+  esImagen,
   extensionPermitida,
 } from "./pedidos";
 
@@ -46,25 +46,29 @@ describe("archivos", () => {
   it("reconoce las extensiones permitidas sin importar mayúsculas", () => {
     expect(extensionPermitida("cartel-perro.JPG")).toBe("jpg");
     expect(extensionPermitida("foto.jpeg")).toBe("jpeg");
-    expect(extensionPermitida("logo.png")).toBe("png");
+    expect(extensionPermitida("tarjeta.TIFF")).toBe("tiff");
     expect(extensionPermitida("diseño.final.pdf")).toBe("pdf");
     expect(extensionPermitida("vector.ai")).toBe("ai");
-    expect(extensionPermitida("capas.psd")).toBe("psd");
+    expect(extensionPermitida("logo.eps")).toBe("eps");
+    expect(extensionPermitida("logo.svg")).toBe("svg");
   });
 
-  it("rechaza otras extensiones o nombres sin extensión", () => {
+  it("rechaza PNG, PSD, otras extensiones o nombres sin extensión", () => {
+    expect(extensionPermitida("logo.png")).toBeNull();
+    expect(extensionPermitida("capas.psd")).toBeNull();
     expect(extensionPermitida("virus.exe")).toBeNull();
     expect(extensionPermitida("carta.docx")).toBeNull();
     expect(extensionPermitida("jpg")).toBeNull();
     expect(extensionPermitida("foto.jpg.exe")).toBeNull();
   });
 
-  it("solo JPG y PNG son previsualizables", () => {
-    expect(esPrevisualizable("jpg")).toBe(true);
-    expect(esPrevisualizable("jpeg")).toBe(true);
-    expect(esPrevisualizable("png")).toBe(true);
-    expect(esPrevisualizable("pdf")).toBe(false);
-    expect(esPrevisualizable("ai")).toBe(false);
-    expect(esPrevisualizable("psd")).toBe(false);
+  it("solo JPG, JPEG y TIFF son imágenes", () => {
+    expect(esImagen("jpg")).toBe(true);
+    expect(esImagen("jpeg")).toBe(true);
+    expect(esImagen("tiff")).toBe(true);
+    expect(esImagen("pdf")).toBe(false);
+    expect(esImagen("ai")).toBe(false);
+    expect(esImagen("eps")).toBe(false);
+    expect(esImagen("svg")).toBe(false);
   });
 });

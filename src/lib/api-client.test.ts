@@ -98,6 +98,16 @@ describe("apiFetch", () => {
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
     await expect(apiFetch("/api/x")).rejects.toMatchObject({ status: 0, code: "RED" });
   });
+
+  it("pasa el signal a fetch y una cancelación da ApiError CANCELADO", async () => {
+    const controller = new AbortController();
+    fetchMock.mockImplementation(() => {
+      controller.abort();
+      return Promise.reject(new DOMException("", "AbortError"));
+    });
+    await expect(apiFetch("/api/x", { signal: controller.signal })).rejects.toMatchObject({ status: 0, code: "CANCELADO" });
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
+  });
 });
 
 describe("authApi", () => {

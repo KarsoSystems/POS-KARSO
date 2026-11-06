@@ -165,7 +165,7 @@ export function BorradorPedido() {
       )}
 
       {datos && (
-        <div className="grid gap-6 lg:grid-cols-[1fr_18rem] lg:items-start">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
           <section aria-label="Ítems del pedido">
             {items.length === 0 ? (
               <Card>
@@ -182,7 +182,7 @@ export function BorradorPedido() {
                   <ItemResumen
                     key={item.lineaId}
                     linea={item}
-                    archivo={datos.archivos[item.archivoId]}
+                    archivos={datos.archivos}
                     className="border-2 border-dashed"
                     acciones={
                       <>
@@ -235,7 +235,7 @@ export function BorradorPedido() {
         item={porQuitar}
         descripcion={
           porQuitar && datos
-            ? `${porQuitar.nombre} (${datos.archivos[porQuitar.archivoId]?.nombreOriginal ?? "sin archivo"})`
+            ? `${porQuitar.nombre} (${datos.archivos[porQuitar.archivos.frente?.archivoId ?? ""]?.nombreOriginal ?? "sin archivo"})`
             : "el ítem"
         }
         quitando={quitando}

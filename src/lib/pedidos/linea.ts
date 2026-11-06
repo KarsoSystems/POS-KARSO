@@ -1,12 +1,20 @@
 import type { Especificacion, Producto, Variante } from "@/lib/catalogo/schema";
-import type { LineaData, MedidaCapturada } from "@/lib/validation/pedidos";
+import type { ArchivosLineaData, LineaData, MedidaCapturada } from "@/lib/validation/pedidos";
+import { evaluarArchivos, type ArchivoDisponible, type ArchivosLinea, type CampoArchivos } from "./archivo-linea";
 import { calcularLinea, type CotizacionLinea } from "./cotizacion";
 
 // Evaluación de una línea contra el catálogo vigente. Pura y compartida: el
 // editor la usa para la cotización en vivo y el servidor para validar, guardar y
 // marcar `problema` cuando el catálogo cambió.
 
-export type CampoLinea = "productoId" | "varianteId" | "medida.ancho" | "medida.alto" | "especificaciones" | "cantidad";
+export type CampoLinea =
+  | "productoId"
+  | "varianteId"
+  | "medida.ancho"
+  | "medida.alto"
+  | "especificaciones"
+  | "cantidad"
+  | CampoArchivos;
 
 /** Datos que la línea copia de la variante al guardarse (KARSO 5.4), más su cotización. */
 export interface LineaCotizada extends CotizacionLinea {
@@ -27,7 +35,12 @@ export interface LineaCotizada extends CotizacionLinea {
   diasEntrega: number;
 }
 
-export type EvaluacionLinea = { ok: true; linea: LineaCotizada } | { ok: false; campo: CampoLinea; mensaje: string };
+/** La línea cotizada con sus caras (SPEC 05): lo que se guarda en el pedido. */
+export interface LineaConArchivos extends LineaCotizada {
+  archivos: ArchivosLinea;
+}
+
+export type EvaluacionLinea<L = LineaCotizada> = { ok: true; linea: L } | { ok: false; campo: CampoLinea; mensaje: string };
 
 type DatosEvaluables = Pick<LineaData, "productoId" | "varianteId" | "medida" | "especificaciones" | "cantidad">;
 
@@ -81,7 +94,24 @@ export function especificacionesDe(producto: Producto, varianteId: string): Espe
   return producto.especificaciones.filter((e) => e.activa && (!e.variantes || e.variantes.includes(varianteId)));
 }
 
-export function evaluarLinea(productos: Producto[], datos: DatosEvaluables): EvaluacionLinea {
+/**
+ * Sin `disponibles` evalúa solo contra el catálogo (la cotización en vivo del
+ * editor). Con ellos evalúa además frente y reverso, y la línea trae `archivos`
+ * con sus advertencias. `disponibles` son los archivos del usuario, por id.
+ */
+export function evaluarLinea(productos: Producto[], datos: DatosEvaluables): EvaluacionLinea;
+export function evaluarLinea(
+  productos: Producto[],
+  datos: DatosEvaluables & { archivos: ArchivosLineaData },
+  disponibles: Record<string, ArchivoDisponible>,
+  ahora?: Date,
+): EvaluacionLinea<LineaConArchivos>;
+export function evaluarLinea(
+  productos: Producto[],
+  datos: DatosEvaluables & { archivos?: ArchivosLineaData },
+  disponibles?: Record<string, ArchivoDisponible>,
+  ahora: Date = new Date(),
+): EvaluacionLinea<LineaCotizada | LineaConArchivos> {
   const falla = (campo: CampoLinea, mensaje: string): EvaluacionLinea => ({ ok: false, campo, mensaje });
 
   const producto = productos.find((p) => p._id === datos.productoId);
@@ -111,25 +141,27 @@ export function evaluarLinea(productos: Producto[], datos: DatosEvaluables): Eva
     cantidad: datos.cantidad,
   });
 
-  return {
-    ok: true,
-    linea: {
-      productoId: producto._id,
-      varianteId: variante.varianteId,
-      sku: variante.sku,
-      nombre: producto.nombre,
-      variante: variante.nombre,
-      atributos: { ...variante.atributos },
-      categoria: producto.categoria,
-      grupoArmado: variante.grupoArmado,
-      volumen: variante.volumen,
-      piezasPorPaquete: variante.piezasPorPaquete,
-      precioPor: variante.precioPor,
-      precioBase: variante.precio,
-      cantidad: datos.cantidad,
-      requiereArmado: producto.requiereArmado,
-      diasEntrega: variante.diasEntrega,
-      ...cotizacion,
-    },
+  const linea: LineaCotizada = {
+    productoId: producto._id,
+    varianteId: variante.varianteId,
+    sku: variante.sku,
+    nombre: producto.nombre,
+    variante: variante.nombre,
+    atributos: { ...variante.atributos },
+    categoria: producto.categoria,
+    grupoArmado: variante.grupoArmado,
+    volumen: variante.volumen,
+    piezasPorPaquete: variante.piezasPorPaquete,
+    precioPor: variante.precioPor,
+    precioBase: variante.precio,
+    cantidad: datos.cantidad,
+    requiereArmado: producto.requiereArmado,
+    diasEntrega: variante.diasEntrega,
+    ...cotizacion,
   };
+  if (!disponibles || !datos.archivos) return { ok: true, linea };
+
+  const archivos = evaluarArchivos(producto, variante, cotizacion.medida, datos.archivos, disponibles, ahora);
+  if (!archivos.ok) return falla(archivos.campo, archivos.mensaje);
+  return { ok: true, linea: { ...linea, archivos: archivos.archivos } };
 }

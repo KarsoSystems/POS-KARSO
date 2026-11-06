@@ -18,6 +18,8 @@ export const fixture = (nombre: string) => path.join(__dirname, "fixtures", nomb
 export const ID = {
   tarjeta: "6720a1f0c1a2b3c4d5e60201",
   tarjetaCouche: "6720a1f0c1a2b3c4d5e60211",
+  tarjetaLaminada: "6720a1f0c1a2b3c4d5e60212", // reverso obligatorio
+  volanteBond: "6720a1f0c1a2b3c4d5e60233", // reverso no_aplica
   lona: "6720a1f0c1a2b3c4d5e60202",
   lona720: "6720a1f0c1a2b3c4d5e60221",
   volante: "6720a1f0c1a2b3c4d5e60203",
@@ -42,7 +44,7 @@ export async function leerOrders(): Promise<{
   try {
     return JSON.parse(await readFile(path.join(DATA_DIR, "orders.json"), "utf8"));
   } catch {
-    return { version: 2, ultimoFolio: 0, pedidos: [] };
+    return { version: 3, ultimoFolio: 0, pedidos: [] };
   }
 }
 
@@ -51,9 +53,9 @@ export async function escribirOrders(data: unknown) {
   await writeFile(path.join(DATA_DIR, "orders.json"), JSON.stringify(data, null, 2));
 }
 
-/** Archivos en uploads/ (sin temporales). */
-export async function enUploads(): Promise<string[]> {
-  const archivos = await readdir(UPLOADS_DIR).catch(() => [] as string[]);
+/** Archivos bajo uploads/<carpeta> ("temporal" o "pedidos/P-000001"), sin los temporales de escritura. */
+export async function enUploads(carpeta = "temporal"): Promise<string[]> {
+  const archivos = await readdir(path.join(UPLOADS_DIR, carpeta)).catch(() => [] as string[]);
   return archivos.filter((a) => !a.startsWith("."));
 }
 
@@ -81,18 +83,27 @@ export async function restaurarMock() {
   await copyFile(BANNERS_ORIGINAL, BANNERS_PATH);
 }
 
-/** Sube un fixture por la API (comparte cookies con la página) y devuelve el id. */
+/**
+ * Sube un fixture por la API con los tres pasos de la SPEC 05 (URL firmada, PUT y
+ * confirmar; comparte cookies con la página) y devuelve el id.
+ */
 export async function subirPorApi(request: APIRequestContext, nombre: string): Promise<string> {
-  const res = await request.post("/api/archivos", {
-    multipart: { archivo: { name: nombre, mimeType: "application/octet-stream", buffer: await readFile(fixture(nombre)) } },
-  });
-  expect(res.status()).toBe(201);
-  return (await res.json()).archivo.id;
+  const buffer = await readFile(fixture(nombre));
+  const pedida = await request.post("/api/archivos/subidas", { data: { nombre, bytes: buffer.byteLength } });
+  expect(pedida.status()).toBe(201);
+  const { archivo, subida } = await pedida.json();
+  expect((await request.put(subida.url, { data: buffer })).status()).toBe(200);
+  const confirmada = await request.post(`/api/archivos/${archivo.id}/confirmar`);
+  expect(confirmada.status()).toBe(200);
+  return archivo.id;
 }
+
+/** `archivos` de la línea: solo frente, o frente y reverso. */
+export const caras = (frente: string, reverso: unknown = null) => ({ frente, reverso });
 
 /** Tarjeta couché × 2 millares con suaje: $310.00. */
 export const tarjeta = (archivoId: string, cambios: Record<string, unknown> = {}) => ({
-  archivoId,
+  archivos: caras(archivoId),
   productoId: ID.tarjeta,
   varianteId: ID.tarjetaCouche,
   especificaciones: [ID.suaje],
@@ -102,7 +113,7 @@ export const tarjeta = (archivoId: string, cambios: Record<string, unknown> = {}
 
 /** Lona 720 dpi de 2.00 × 1.50 m × 2 con ojillos: $414.00. */
 export const lona = (archivoId: string, cambios: Record<string, unknown> = {}) => ({
-  archivoId,
+  archivos: caras(archivoId),
   productoId: ID.lona,
   varianteId: ID.lona720,
   medida: { ancho: 2, alto: 1.5 },
@@ -121,12 +132,19 @@ export async function agregarPorApi(request: APIRequestContext, linea: Record<st
 export const opcion = (page: Page, nombre: string | RegExp) =>
   page.getByRole("radio", { name: nombre, exact: typeof nombre === "string" });
 
-/** En el editor: sube el archivo y deja 2 millares de tarjeta couché con suaje. */
-export async function llenarTarjeta(page: Page, archivo = "perro.png") {
-  await page.getByLabel("Archivo").setInputFiles(fixture(archivo));
-  await expect(page.getByText(new RegExp(`^${archivo.split(".").pop()!.toUpperCase()} ·`))).toBeVisible();
+/** En el editor: sube un fixture a la cara y espera a que aparezcan sus datos ("JPG · …"). */
+export async function subirEnEditor(page: Page, cara: "frente" | "reverso", archivo: string) {
+  await page.getByLabel(`Archivo del ${cara}`).setInputFiles(fixture(archivo));
+  const formato = archivo.split(".").pop()!.toUpperCase();
+  await expect(page.getByText(new RegExp(`^${formato} ·`)).first()).toBeVisible();
+  await expect(page.getByText(archivo, { exact: true }).first()).toBeVisible();
+}
+
+/** En el editor: deja 2 millares de tarjeta couché con suaje y sube el frente. */
+export async function llenarTarjeta(page: Page, archivo = "tarjeta-cmyk.jpg") {
   await opcion(page, /^Tarjeta Tarjetas/).click();
   await opcion(page, "Couché").click();
+  await subirEnEditor(page, "frente", archivo);
   await page.getByLabel(/Suaje/).check();
   await page.getByLabel(/^Cantidad/).fill("2");
 }

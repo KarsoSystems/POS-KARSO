@@ -112,73 +112,140 @@ describe("urlArchivo", () => {
 });
 
 describe("subirArchivo", () => {
-  it("envía FormData con el campo 'archivo', con cookies, y resuelve con el archivo", async () => {
-    const file = archivo("perro.jpg");
-    const promesa = subirArchivo(file);
-    const xhr = FakeXhr.ultima;
-    expect(xhr).toMatchObject({ method: "POST", url: "/api/archivos", withCredentials: true });
-    expect((xhr.enviado as FormData).get("archivo")).toBeInstanceOf(File);
+  const URL_FIRMADA = "http://localhost:3000/api/r2-local/temporal/a1.jpg?expira=1&bytes=10&firma=f";
+  const pendiente = { id: "a1", nombreOriginal: "perro.jpg", estado: "pendiente" };
+  const subido = { id: "a1", nombreOriginal: "perro.jpg", estado: "subido", miniatura: true };
+  const subida = { archivo: pendiente, subida: { url: URL_FIRMADA, metodo: "PUT", expiraEn: "2026-11-05T12:15:00Z" } };
 
-    xhr.responder(201, { archivo: { id: "a1", nombreOriginal: "perro.jpg" } });
-    await expect(promesa).resolves.toEqual({ archivo: { id: "a1", nombreOriginal: "perro.jpg" } });
+  /** Espera a que el cliente abra el XMLHttpRequest del PUT (después de pedir la URL). */
+  async function xhrDelPut(antes: FakeXhr | undefined): Promise<FakeXhr> {
+    await vi.waitFor(() => expect(FakeXhr.ultima).not.toBe(antes));
+    return FakeXhr.ultima;
+  }
+
+  it("pide la URL firmada, sube con PUT sin cookies y confirma", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(201, subida)).mockResolvedValueOnce(jsonResponse(200, { archivo: subido }));
+    const file = archivo("perro.jpg", 10);
+    const antes = FakeXhr.ultima;
+    const promesa = subirArchivo(file);
+
+    const xhr = await xhrDelPut(antes);
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/archivos/subidas", expect.objectContaining({
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({ nombre: "perro.jpg", bytes: 10 }),
+    }));
+    expect(xhr).toMatchObject({ method: "PUT", url: URL_FIRMADA, withCredentials: false });
+    expect(xhr.enviado).toBe(file);
+
+    xhr.responder(200, "");
+    await expect(promesa).resolves.toEqual({ archivo: subido });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/archivos/a1/confirmar", expect.objectContaining({ method: "POST" }));
   });
 
-  it("reporta el avance de subida y termina en 1", async () => {
+  it("reporta el avance del PUT y termina en 1 al confirmar", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(201, subida)).mockResolvedValueOnce(jsonResponse(200, { archivo: subido }));
     const avances: number[] = [];
-    const promesa = subirArchivo(archivo("a.png"), { onProgress: (a) => avances.push(a) });
-    const xhr = FakeXhr.ultima;
+    const antes = FakeXhr.ultima;
+    const promesa = subirArchivo(archivo("a.tiff"), { onProgress: (a) => avances.push(a) });
+    const xhr = await xhrDelPut(antes);
     xhr.upload.onprogress!({ lengthComputable: true, loaded: 25, total: 100 });
     xhr.upload.onprogress!({ lengthComputable: false, loaded: 0, total: 0 });
     xhr.upload.onprogress!({ lengthComputable: true, loaded: 100, total: 100 });
-    xhr.responder(201, { archivo: {} });
+    xhr.responder(200, "");
     await promesa;
     expect(avances).toEqual([0.25, 1, 1]);
   });
 
-  it("un error de la API llega como ApiError con el mensaje del servidor", async () => {
-    const promesa = subirArchivo(archivo("a.pdf"));
-    FakeXhr.ultima.responder(413, { error: { code: "ARCHIVO_MUY_GRANDE", message: "El archivo supera 50 MB" } });
-    await expect(promesa).rejects.toMatchObject({
+  it("un error al pedir la URL llega como ApiError y no sube nada", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(413, { error: { code: "ARCHIVO_MUY_GRANDE", message: "El archivo supera 40 MB" } }),
+    );
+    const antes = FakeXhr.ultima;
+    await expect(subirArchivo(archivo("a.pdf"))).rejects.toMatchObject({
       status: 413,
       code: "ARCHIVO_MUY_GRANDE",
-      message: "El archivo supera 50 MB",
+      message: "El archivo supera 40 MB",
     });
+    expect(FakeXhr.ultima).toBe(antes);
   });
 
-  it("una respuesta no JSON da un ApiError genérico", async () => {
+  it("un 403 del PUT (URL vencida) llega como ApiError y no confirma", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(201, subida));
+    const antes = FakeXhr.ultima;
     const promesa = subirArchivo(archivo("a.pdf"));
-    FakeXhr.ultima.responder(502, "<html>Bad gateway</html>");
+    (await xhrDelPut(antes)).responder(403, {
+      error: { code: "FIRMA_INVALIDA", message: "La URL de subida no es válida o ya venció" },
+    });
+    await expect(promesa).rejects.toMatchObject({ status: 403, code: "FIRMA_INVALIDA" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("un PUT con respuesta no JSON (como el XML de R2) da un ApiError genérico", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(201, subida));
+    const antes = FakeXhr.ultima;
+    const promesa = subirArchivo(archivo("a.pdf"));
+    (await xhrDelPut(antes)).responder(502, "<Error>Bad gateway</Error>");
     await expect(promesa).rejects.toMatchObject({ status: 502, code: "DESCONOCIDO" });
   });
 
-  it("un fallo de red da ApiError con status 0", async () => {
+  it("un fallo de red en el PUT da ApiError con status 0", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(201, subida));
+    const antes = FakeXhr.ultima;
     const promesa = subirArchivo(archivo("a.pdf"));
-    FakeXhr.ultima.onerror!();
+    (await xhrDelPut(antes)).onerror!();
     await expect(promesa).rejects.toMatchObject({ status: 0, code: "RED" });
   });
 
-  it("se puede cancelar con un AbortSignal", async () => {
+  it("un error al confirmar (409) llega como ApiError", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(201, subida))
+      .mockResolvedValueOnce(jsonResponse(409, { error: { code: "ARCHIVO_NO_SUBIDO", message: "El archivo no llegó; vuelve a subirlo" } }));
+    const antes = FakeXhr.ultima;
+    const promesa = subirArchivo(archivo("a.pdf"));
+    (await xhrDelPut(antes)).responder(200, "");
+    await expect(promesa).rejects.toMatchObject({ status: 409, message: "El archivo no llegó; vuelve a subirlo" });
+  });
+
+  it("se puede cancelar durante el PUT", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(201, subida));
     const controller = new AbortController();
-    const promesa = subirArchivo(archivo("a.psd"), { signal: controller.signal });
+    const antes = FakeXhr.ultima;
+    const promesa = subirArchivo(archivo("a.eps"), { signal: controller.signal });
+    const xhr = await xhrDelPut(antes);
     controller.abort();
-    expect(FakeXhr.ultima.abortado).toBe(true);
-    await expect(promesa).rejects.toMatchObject({ code: "CANCELADO" });
+    expect(xhr.abortado).toBe(true);
+    await expect(promesa).rejects.toMatchObject({ code: "CANCELADO", message: "Subida cancelada" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("rechaza sin subir una extensión no permitida", async () => {
-    const xhrAntes = FakeXhr.ultima;
-    const error = await subirArchivo(archivo("virus.exe")).catch((e) => e);
-    expect(error).toBeInstanceOf(ApiError);
-    expect(error).toMatchObject({ status: 415, message: "Formato no permitido" });
-    expect(FakeXhr.ultima).toBe(xhrAntes);
+  it("se puede cancelar mientras pide la URL", async () => {
+    fetchMock.mockImplementationOnce(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => init.signal!.addEventListener("abort", () => reject(new DOMException("", "AbortError")))),
+    );
+    const controller = new AbortController();
+    const antes = FakeXhr.ultima;
+    const promesa = subirArchivo(archivo("a.pdf"), { signal: controller.signal });
+    controller.abort();
+    await expect(promesa).rejects.toMatchObject({ code: "CANCELADO", message: "Subida cancelada" });
+    expect(FakeXhr.ultima).toBe(antes);
   });
 
-  it("rechaza sin subir un archivo de más de 50 MB", async () => {
-    const xhrAntes = FakeXhr.ultima;
-    await expect(subirArchivo(archivo("grande.jpg", 52_428_801))).rejects.toMatchObject({
+  it("rechaza sin pedir URL una extensión no permitida (PNG incluido)", async () => {
+    for (const nombre of ["virus.exe", "logo.png", "capas.psd"]) {
+      const error = await subirArchivo(archivo(nombre)).catch((e) => e);
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({ status: 415, message: "Formato no permitido" });
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rechaza sin pedir URL un archivo de más de 40 MB", async () => {
+    await expect(subirArchivo(archivo("grande.jpg", 41_943_041))).rejects.toMatchObject({
       status: 413,
-      message: "El archivo supera 50 MB",
+      message: "El archivo supera 40 MB",
     });
-    expect(FakeXhr.ultima).toBe(xhrAntes);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

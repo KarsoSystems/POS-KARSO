@@ -11,10 +11,10 @@ import {
 
 // El contador de folios vive en el mismo archivo que los pedidos: así el folio
 // se asigna bajo el mismo lock que la confirmación y no se gastan en borradores.
-// Versión 2 = líneas de KARSO (SPEC 04); un archivo de la versión 1 (SPEC 02) se
-// descarta: eran datos de prueba del demo.
+// Versión 3 = líneas de KARSO (SPEC 04) con frente y reverso (SPEC 05); un archivo
+// de una versión anterior se descarta: eran datos de prueba del demo.
 interface OrdersFile {
-  version: 2;
+  version: 3;
   ultimoFolio: number;
   pedidos: Pedido[];
 }
@@ -29,7 +29,7 @@ async function aplicar(pedido: Pedido, cambiar: CambiarPedido): Promise<void> {
 export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): PedidoRepository {
   const store = createJsonStore<OrdersFile>(
     "orders.json",
-    { version: 2, ultimoFolio: 0, pedidos: [] },
+    { version: 3, ultimoFolio: 0, pedidos: [] },
     dataDir,
     { versionDistinta: "descartar" },
   );
@@ -96,10 +96,11 @@ export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): 
         const pedido = buscar(data, id);
         if (pedido.estado !== "borrador") throw new EstadoPedidoInvalidoError(id, pedido.estado);
 
-        await aplicar(pedido, cambiar);
+        const folio = formatFolio(data.ultimoFolio + 1);
+        await aplicar(pedido, (p) => cambiar(p, folio));
         // Si `cambiar` lanzó, no se llega aquí y el folio no se consume.
         data.ultimoFolio += 1;
-        pedido.folio = formatFolio(data.ultimoFolio);
+        pedido.folio = folio;
         pedido.estado = "pedido";
         pedido.confirmadoAt = pedido.updatedAt;
         return pedido;

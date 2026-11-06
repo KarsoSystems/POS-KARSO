@@ -2,15 +2,22 @@
 
 import { Upload, X } from "lucide-react";
 import { useId, useRef, useState } from "react";
+import { AdvertenciasArchivo } from "@/components/molecules/advertencias-archivo";
 import { MiniaturaArchivo } from "@/components/molecules/miniatura-archivo";
 import { Button } from "@/components/atoms/button";
-import { ACCEPT_ARCHIVOS } from "@/lib/validation/pedidos";
 import type { SubidaEnCurso } from "@/lib/archivos";
+import type { Advertencia } from "@/lib/pedidos/archivo-linea";
+import { textoDatosArchivo } from "@/lib/pedidos/formato";
+import { ACCEPT_ARCHIVOS, EXTENSIONES_PERMITIDAS } from "@/lib/validation/pedidos";
 import type { PublicArchivo } from "@/lib/pedidos-api";
 import { cn } from "@/lib/utils";
 
 interface SubidaArchivoProps {
+  /** Nombre accesible del campo, p. ej. "Archivo del frente". */
+  etiqueta?: string;
   archivo: PublicArchivo | null;
+  /** Advertencias del archivo contra las reglas de la variante elegida (en vivo). */
+  advertencias?: Advertencia[];
   /** Subida en curso, o null si no hay ninguna. */
   subiendo: SubidaEnCurso | null;
   onElegir: (file: File) => void;
@@ -21,11 +28,23 @@ interface SubidaArchivoProps {
   error?: string;
 }
 
-const formatoBytes = (bytes: number) =>
-  bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+/** "JPG, JPEG, TIFF, PDF, AI, EPS o SVG". */
+const FORMATOS = (() => {
+  const nombres = EXTENSIONES_PERMITIDAS.map((ext) => ext.toUpperCase());
+  return `${nombres.slice(0, -1).join(", ")} o ${nombres.at(-1)}`;
+})();
 
-/** Paso 1 del editor: arrastrar o elegir un archivo, con barra de progreso. */
-export function SubidaArchivo({ archivo, subiendo, onElegir, onCancelar, errorSubida, error }: SubidaArchivoProps) {
+/** Una cara del archivo en el editor: arrastrar o elegir, con barra de progreso, sus datos y advertencias. */
+export function SubidaArchivo({
+  etiqueta = "Archivo",
+  archivo,
+  advertencias = [],
+  subiendo,
+  onElegir,
+  onCancelar,
+  errorSubida,
+  error,
+}: SubidaArchivoProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [arrastrando, setArrastrando] = useState(false);
@@ -47,12 +66,11 @@ export function SubidaArchivo({ archivo, subiendo, onElegir, onCancelar, errorSu
             <p className="truncate font-medium" title={archivo.nombreOriginal}>
               {archivo.nombreOriginal}
             </p>
-            <p className="text-sm text-muted-foreground">
-              {archivo.extension.toUpperCase()} · {formatoBytes(archivo.bytes)}
-            </p>
+            <p className="text-sm text-muted-foreground">{textoDatosArchivo(archivo)}</p>
           </div>
         </div>
       )}
+      {archivo && !subiendo && <AdvertenciasArchivo advertencias={advertencias} />}
 
       {subiendo ? (
         <div className="space-y-2 rounded-lg border-2 border-dashed bg-card p-3">
@@ -103,14 +121,14 @@ export function SubidaArchivo({ archivo, subiendo, onElegir, onCancelar, errorSu
           <span className="text-sm font-medium">
             {archivo ? "Cambiar archivo" : "Arrastra tu archivo aquí o haz clic para elegirlo"}
           </span>
-          <span className="text-xs text-muted-foreground">JPG, PNG, PDF, AI o PSD · hasta 50 MB</span>
+          <span className="text-xs text-muted-foreground">{FORMATOS} · hasta 40 MB</span>
           <input
             ref={inputRef}
             id={inputId}
             type="file"
             accept={ACCEPT_ARCHIVOS}
             className="sr-only"
-            aria-label="Archivo"
+            aria-label={etiqueta}
             aria-invalid={mensaje ? true : undefined}
             onChange={(e) => elegir(e.target.files)}
           />

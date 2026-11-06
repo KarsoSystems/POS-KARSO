@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Producto, ProductosArchivo } from "@/lib/catalogo/schema";
 import { lineaSchema } from "@/lib/validation/pedidos";
-import { especificacionesDe, evaluarLinea } from "./linea";
+import { especificacionesDe, evaluarLinea, type EvaluacionLinea } from "./linea";
 
 const leerProductos = (): Producto[] =>
   (
@@ -36,7 +36,7 @@ const lona = (cambios: Partial<Parameters<typeof evaluarLinea>[1]> = {}) => ({
   ...cambios,
 });
 
-const error = (resultado: ReturnType<typeof evaluarLinea>) => (resultado.ok ? null : [resultado.campo, resultado.mensaje]);
+const error = (resultado: EvaluacionLinea<object>) => (resultado.ok ? null : [resultado.campo, resultado.mensaje]);
 
 describe("evaluarLinea: línea válida", () => {
   it("copia los datos de la variante y la cotización (tarjeta couché con suaje, $310.00)", () => {
@@ -188,10 +188,16 @@ describe("especificacionesDe", () => {
 });
 
 describe("lineaSchema", () => {
-  const valida = { archivoId: "a1", productoId: "p1", varianteId: "v1", cantidad: 1000 };
+  const valida = { archivos: { frente: "a1" }, productoId: "p1", varianteId: "v1", cantidad: 1000 };
 
   it("aplica valores por defecto: sin medida, sin acabados y descripción vacía", () => {
-    expect(lineaSchema.parse(valida)).toEqual({ ...valida, descripcion: "", medida: null, especificaciones: [] });
+    expect(lineaSchema.parse(valida)).toEqual({
+      ...valida,
+      archivos: { frente: "a1", reverso: null },
+      descripcion: "",
+      medida: null,
+      especificaciones: [],
+    });
   });
 
   it("acepta 100,000 y rechaza 100,001 (máximo técnico, no de negocio)", () => {

@@ -1,7 +1,7 @@
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createJsonArchivoRepository } from "@/server/repositories/json-archivo-repository";
 import { createLocalFileStorage, resolveUploadsDir } from "./local-file-storage";
 
@@ -92,8 +92,27 @@ describe("LocalFileStorage", () => {
   it("rechaza llaves que salen de la carpeta", async () => {
     const storage = createLocalFileStorage(dir);
     await expect(storage.put("../fuera.png", streamDe("x"))).rejects.toThrow(/Llave de archivo inválida/);
-    await expect(storage.get("sub/a.png")).rejects.toThrow(/Llave de archivo inválida/);
+    await expect(storage.get("sub/../a.png")).rejects.toThrow(/Llave de archivo inválida/);
+    await expect(storage.get("/etc/passwd")).rejects.toThrow(/Llave de archivo inválida/);
+    await expect(storage.put("sub//a.png", streamDe("x"))).rejects.toThrow(/Llave de archivo inválida/);
     await expect(storage.delete("..")).rejects.toThrow(/Llave de archivo inválida/);
+  });
+
+  it("copy copia a otra llave (creando carpetas) y falla si el origen no existe", async () => {
+    const storage = createLocalFileStorage(dir);
+    await storage.put("temporal/a.jpg", streamDe("hola"));
+    await storage.copy("temporal/a.jpg", "pedidos/P-000001/l_frente.jpg");
+    expect(await leerTodo((await storage.get("pedidos/P-000001/l_frente.jpg"))!)).toBe("hola");
+    expect(await leerTodo((await storage.get("temporal/a.jpg"))!)).toBe("hola");
+    await expect(storage.copy("temporal/no.jpg", "pedidos/x.jpg")).rejects.toThrow();
+    expect(await readdir(path.join(dir, "pedidos"))).toEqual(["P-000001"]);
+  });
+
+  it("acepta llaves con carpetas y las crea", async () => {
+    const storage = createLocalFileStorage(dir);
+    await storage.put("pedidos/P-000001/linea_frente.jpg", streamDe("x"));
+    expect(await readdir(path.join(dir, "pedidos", "P-000001"))).toEqual(["linea_frente.jpg"]);
+    expect(await leerTodo((await storage.get("pedidos/P-000001/linea_frente.jpg"))!)).toBe("x");
   });
 });
 
@@ -105,7 +124,11 @@ describe("JsonArchivoRepository", () => {
     extension: "jpg" as const,
     mime: "image/jpeg",
     bytes: 1234,
-    previsualizable: true,
+    key: "temporal/11111111-1111-4111-8111-111111111111.jpg",
+    estado: "pendiente" as const,
+    metadatos: null,
+    miniatura: false,
+    subidoEn: null,
   };
 
   it("create asigna createdAt y lo guarda en archivos.json", async () => {
@@ -115,7 +138,7 @@ describe("JsonArchivoRepository", () => {
     expect(archivo).toMatchObject(datos);
     expect(Number.isNaN(Date.parse(archivo.createdAt))).toBe(false);
     const json = JSON.parse(await readFile(path.join(dir, "archivos.json"), "utf8"));
-    expect(json).toEqual({ version: 1, archivos: [archivo] });
+    expect(json).toEqual({ version: 2, archivos: [archivo] });
   });
 
   it("findById devuelve el archivo o null", async () => {
@@ -123,6 +146,24 @@ describe("JsonArchivoRepository", () => {
     await repo.create(datos);
     expect((await repo.findById(datos.id))?.nombreOriginal).toBe("cartel-perro.jpg");
     expect(await repo.findById("otro")).toBeNull();
+  });
+
+  it("update cambia los campos y lanza si no existe", async () => {
+    const repo = createJsonArchivoRepository(dir);
+    await repo.create(datos);
+    const actualizado = await repo.update(datos.id, { estado: "subido", miniatura: true });
+    expect(actualizado).toMatchObject({ estado: "subido", miniatura: true, nombreOriginal: "cartel-perro.jpg" });
+    expect((await repo.findById(datos.id))?.estado).toBe("subido");
+    await expect(repo.update("otro", { estado: "subido" })).rejects.toThrow("Archivo otro no encontrado");
+  });
+
+  it("descarta archivos.json de la versión 1", async () => {
+    await writeFile(path.join(dir, "archivos.json"), JSON.stringify({ version: 1, archivos: [{ id: "viejo" }] }));
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const repo = createJsonArchivoRepository(dir);
+    expect(await repo.findById("viejo")).toBeNull();
+    expect(aviso).toHaveBeenCalled();
+    aviso.mockRestore();
   });
 
   it("delete quita el registro", async () => {

@@ -141,11 +141,11 @@ export function DetallePedido({ id, recienConfirmado }: { id: string; recienConf
             )}
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-[1fr_18rem] lg:items-start">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
             <section aria-label="Ítems del pedido">
               <ul className="space-y-3">
                 {pedido.productos.map((linea) => (
-                  <ItemResumen key={linea.lineaId} linea={linea} archivo={datos.archivos[linea.archivoId]} />
+                  <ItemResumen key={linea.lineaId} linea={linea} archivos={datos.archivos} />
                 ))}
               </ul>
             </section>

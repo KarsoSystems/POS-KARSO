@@ -10,6 +10,7 @@ import { EspecificacionesLinea } from "@/components/molecules/especificaciones-l
 import { MedidaVariable } from "@/components/molecules/medida-variable";
 import { ResumenPieza } from "@/components/molecules/resumen-pieza";
 import { SelectorAtributos } from "@/components/molecules/selector-atributos";
+import { SelectorReverso } from "@/components/molecules/selector-reverso";
 import { SubidaArchivo } from "@/components/molecules/subida-archivo";
 import { Button } from "@/components/atoms/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
@@ -135,10 +136,16 @@ export function EditorItem({ itemId, productoInicial }: { itemId?: string; produ
     variante,
     especificaciones,
     archivo,
+    archivoReverso,
+    reverso,
+    elegirReverso,
+    anios,
+    advertencias,
     errores,
     errorGeneral,
     guardando,
     subida,
+    subidaReverso,
     subiendo,
     vivo,
     actualizar,
@@ -158,7 +165,9 @@ export function EditorItem({ itemId, productoInicial }: { itemId?: string; produ
   // La medida de una variante fija se conoce sin capturar nada; la variable, al cotizar.
   const medidaPieza = linea?.medida ?? (variante && !variable ? resolverMedida(variante, null) : null);
   const cantidadNumero = Number(campos?.cantidad.replace(/[\s,]/g, ""));
-  const pasoCantidad = variante ? 5 : producto ? 4 : 3;
+  // Los archivos van después de la variante: sus reglas (formatos, medida, reverso) dependen de ella.
+  const pasoCantidad = variante ? 5 : producto ? 3 : 2;
+  const caraReverso = variante?.caras.reverso ?? "no_aplica";
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -186,18 +195,7 @@ export function EditorItem({ itemId, productoInicial }: { itemId?: string; produ
       {tienda && campos && (
         <form onSubmit={guardar} noValidate className="grid gap-6 lg:grid-cols-[1fr_20rem] lg:items-start">
           <div className="min-w-0 space-y-6">
-            <Paso numero={1} titulo="Archivo">
-              <SubidaArchivo
-                archivo={archivo}
-                subiendo={subida.subiendo}
-                onElegir={subida.subir}
-                onCancelar={subida.cancelar}
-                errorSubida={subida.error}
-                error={errores.archivoId}
-              />
-            </Paso>
-
-            <Paso numero={2} titulo="Producto">
+            <Paso numero={1} titulo="Producto">
               <SelectorProducto
                 productos={productos}
                 elegido={campos.productoId}
@@ -207,7 +205,7 @@ export function EditorItem({ itemId, productoInicial }: { itemId?: string; produ
             </Paso>
 
             {producto && (
-              <Paso numero={3} titulo="Opciones y medida">
+              <Paso numero={2} titulo="Opciones y medida">
                 <SelectorAtributos selectores={selectores} onElegir={elegir} error={errores.varianteId} />
                 {variante && (
                   <p className="text-sm">
@@ -226,6 +224,45 @@ export function EditorItem({ itemId, productoInicial }: { itemId?: string; produ
                     valor={campos.medida}
                     onCambiar={(medida) => cambiar({ medida }, "medida.ancho", "medida.alto")}
                     errores={{ ancho: errores["medida.ancho"], alto: errores["medida.alto"] }}
+                  />
+                )}
+              </Paso>
+            )}
+
+            {variante && (
+              <Paso numero={3} titulo="Archivos">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Frente</p>
+                  <SubidaArchivo
+                    etiqueta="Archivo del frente"
+                    archivo={archivo}
+                    advertencias={advertencias.frente}
+                    subiendo={subida.subiendo}
+                    onElegir={subida.subir}
+                    onCancelar={subida.cancelar}
+                    errorSubida={subida.error}
+                    error={errores["archivos.frente"]}
+                  />
+                </div>
+                {caraReverso !== "no_aplica" && (
+                  <SelectorReverso
+                    cara={caraReverso}
+                    valor={reverso}
+                    onCambiar={elegirReverso}
+                    anios={anios}
+                    error={reverso?.tipo === "archivo" ? undefined : errores["archivos.reverso"]}
+                    subida={
+                      <SubidaArchivo
+                        etiqueta="Archivo del reverso"
+                        archivo={archivoReverso}
+                        advertencias={advertencias.reverso}
+                        subiendo={subidaReverso.subiendo}
+                        onElegir={subidaReverso.subir}
+                        onCancelar={subidaReverso.cancelar}
+                        errorSubida={subidaReverso.error}
+                        error={errores["archivos.reverso"]}
+                      />
+                    }
                   />
                 )}
               </Paso>

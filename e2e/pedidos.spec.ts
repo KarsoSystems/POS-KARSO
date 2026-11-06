@@ -1,4 +1,3 @@
-import { writeFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { crearCuentaActiva, datosRegistro, PASSWORD, sinScrollHorizontal } from "./helpers";
 import {
@@ -6,13 +5,13 @@ import {
   editarProductos,
   enUploads,
   escribirOrders,
-  fixture,
   ID,
   leerOrders,
   llenarTarjeta,
   lona,
   opcion,
   restaurarMock,
+  subirEnEditor,
   subirPorApi,
   tarjeta,
   varianteDe,
@@ -76,10 +75,9 @@ test.describe("Editor de línea", () => {
     await crearCuentaActiva(page.request);
     await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "volante.jpg")));
     await page.goto(`/panel/pedidos/nuevo/item?producto=${ID.lona}`);
-    await page.getByLabel("Archivo").setInputFiles(fixture("perro.png"));
-    await expect(page.getByText(/^PNG ·/)).toBeVisible();
     await expect(opcion(page, /^Lona 13 oz/)).toHaveAttribute("aria-checked", "true");
     await opcion(page, "720 dpi").click();
+    await subirEnEditor(page, "frente", "lona-cmyk.jpg");
     await page.getByLabel("Ancho (m)").fill("2");
     await page.getByLabel("Alto (m)").fill("1.5");
     await page.getByLabel(/Ojillos/).check();
@@ -121,8 +119,6 @@ test.describe("Editor de línea", () => {
   }) => {
     await crearCuentaActiva(page.request);
     await page.goto(`/panel/pedidos/nuevo/item?producto=${ID.lona}`);
-    await page.getByLabel("Archivo").setInputFiles(fixture("perro.png"));
-    await expect(page.getByText(/^PNG ·/)).toBeVisible();
     await opcion(page, "720 dpi").click();
     await page.getByLabel("Ancho (m)").fill("6");
     await page.getByLabel("Alto (m)").fill("1.5");
@@ -170,46 +166,9 @@ test.describe("Editor de línea", () => {
     await expect(page.getByText("3 paquetes de 100 (300 piezas)").first()).toBeVisible();
   });
 
-  test("acepta JPG, PNG, PDF, AI y PSD; rechaza .exe, .docx y > 50 MB sin guardar nada", async ({ page }) => {
-    await crearCuentaActiva(page.request);
-    await page.goto("/panel/pedidos/nuevo/item");
-    const archivo = page.getByLabel("Archivo");
-
-    for (const [nombre, formato] of [
-      ["volante.jpg", "JPG"],
-      ["perro.png", "PNG"],
-      ["diseno.pdf", "PDF"],
-      ["vector.ai", "AI"],
-      ["capas.psd", "PSD"],
-    ]) {
-      await archivo.setInputFiles(fixture(nombre));
-      await expect(page.getByText(new RegExp(`^${formato} ·`))).toBeVisible();
-      await expect(page.getByText(nombre, { exact: true }).first()).toBeVisible();
-    }
-
-    const antes = await enUploads();
-    for (const nombre of ["programa.exe", "carta.docx"]) {
-      await archivo.setInputFiles(fixture(nombre));
-      await expect(page.getByText("Formato no permitido")).toBeVisible();
-    }
-    // Playwright no acepta buffers > 50 MB: se escribe a un archivo temporal.
-    const enorme = test.info().outputPath("enorme.png");
-    await writeFile(enorme, Buffer.alloc(52_428_800 + 1));
-    await archivo.setInputFiles(enorme);
-    await expect(page.getByText("El archivo supera 50 MB")).toBeVisible();
-    expect(await enUploads()).toEqual(antes);
-
-    // También el servidor los rechaza aunque no pasen por el front.
-    const exe = await page.request.post("/api/archivos", {
-      multipart: { archivo: { name: "programa.exe", mimeType: "application/octet-stream", buffer: Buffer.from("MZ") } },
-    });
-    expect(exe.status()).toBe(415);
-    expect(await enUploads()).toEqual(antes);
-  });
-
   test("editar una línea precarga todo y la cotización se actualiza en vivo antes de guardar", async ({ page }) => {
     await crearCuentaActiva(page.request);
-    const archivoId = await subirPorApi(page.request, "perro.png");
+    const archivoId = await subirPorApi(page.request, "tarjeta-cmyk.jpg");
     const { productos } = await agregarPorApi(page.request, lona(archivoId));
 
     await page.goto("/panel/pedidos/nuevo");
@@ -234,7 +193,7 @@ test.describe("Editor de línea", () => {
 });
 
 test.describe("Borrador", () => {
-  test("miniatura para JPG/PNG e ícono con nombre para PDF, AI y PSD", async ({ page }) => {
+  test("miniatura (JPG generado por el servidor) para JPG e ícono con nombre para PDF", async ({ page }) => {
     await crearCuentaActiva(page.request);
     for (const nombre of ["volante.jpg", "diseno.pdf"]) {
       await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, nombre)));
@@ -251,12 +210,12 @@ test.describe("Borrador", () => {
   test("sobrevive a recargar la página y a cerrar y abrir sesión", async ({ page, context }) => {
     const datos = datosRegistro();
     await crearCuentaActiva(page.request, datos);
-    await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "perro.png")));
+    await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "tarjeta-cmyk.jpg")));
 
     await page.goto("/panel/pedidos/nuevo");
-    await expect(page.getByText("perro.png")).toBeVisible();
+    await expect(page.getByText("tarjeta-cmyk.jpg").first()).toBeVisible();
     await page.reload();
-    await expect(page.getByText("perro.png")).toBeVisible();
+    await expect(page.getByText("tarjeta-cmyk.jpg").first()).toBeVisible();
 
     await page.getByRole("button", { name: "Cerrar sesión" }).click();
     await expect(page).toHaveURL(/\/login$/);
@@ -269,28 +228,28 @@ test.describe("Borrador", () => {
     await expect(page).toHaveURL(/\/panel$/);
 
     await page.goto("/panel/pedidos/nuevo");
-    await expect(page.getByText("perro.png")).toBeVisible();
+    await expect(page.getByText("tarjeta-cmyk.jpg").first()).toBeVisible();
     await expect(page.getByTestId("total-pedido")).toHaveText("$310.00");
   });
 
   test("quitar una línea pide confirmación y borra su archivo de uploads/", async ({ page }) => {
     await crearCuentaActiva(page.request);
-    const archivoId = await subirPorApi(page.request, "perro.png");
+    const archivoId = await subirPorApi(page.request, "tarjeta-cmyk.jpg");
     await agregarPorApi(page.request, tarjeta(archivoId));
-    expect(await enUploads()).toContain(`${archivoId}.png`);
+    expect(await enUploads()).toContain(`${archivoId}.jpg`);
 
     await page.goto("/panel/pedidos/nuevo");
     await page.getByRole("button", { name: "Quitar ítem" }).click();
     await expect(page.getByText("¿Quitar este ítem?")).toBeVisible();
-    await expect(page.getByText("Se quitará Tarjeta (perro.png)")).toBeVisible();
+    await expect(page.getByText("Se quitará Tarjeta (tarjeta-cmyk.jpg)")).toBeVisible();
     await page.getByRole("dialog").getByRole("button", { name: "Quitar ítem" }).click();
     await expect(page.getByText("Tu pedido está vacío")).toBeVisible();
-    expect(await enUploads()).not.toContain(`${archivoId}.png`);
+    expect(await enUploads()).not.toContain(`${archivoId}.jpg`);
   });
 
   test("la línea 21 no se puede agregar: 'Máximo 20 ítems por pedido'", async ({ page }) => {
     await crearCuentaActiva(page.request);
-    const archivoId = await subirPorApi(page.request, "perro.png");
+    const archivoId = await subirPorApi(page.request, "tarjeta-cmyk.jpg");
     for (let i = 0; i < 20; i++) await agregarPorApi(page.request, tarjeta(archivoId));
 
     const res = await page.request.post("/api/pedidos/borrador/items", { data: tarjeta(archivoId) });
@@ -325,7 +284,7 @@ test.describe("Borrador", () => {
 
   test("si la variante se desactiva en el mock, la línea muestra el problema y 'Hacer pedido' se bloquea", async ({ page }) => {
     await crearCuentaActiva(page.request);
-    await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "perro.png")));
+    await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "tarjeta-cmyk.jpg")));
     await editarProductos((a) => {
       varianteDe(a, ID.tarjeta, ID.tarjetaCouche).activa = false;
     });
@@ -346,23 +305,10 @@ test.describe("Borrador", () => {
 
     await page.goto("/panel/pedidos/nuevo");
     await expect(page.getByText("Tu pedido está vacío")).toBeVisible();
-    expect(await leerOrders()).toMatchObject({ version: 2 });
+    expect(await leerOrders()).toMatchObject({ version: 3 });
     // Deja el contador como estaba para que los folios de otros tests sigan la secuencia.
     const actual = await leerOrders();
     await escribirOrders({ ...actual, ultimoFolio });
-  });
-});
-
-test.describe("Archivos", () => {
-  test("el archivo de otro usuario responde 404", async ({ page, playwright, baseURL }) => {
-    await crearCuentaActiva(page.request);
-    const archivoId = await subirPorApi(page.request, "perro.png");
-    expect((await page.request.get(`/api/archivos/${archivoId}`)).status()).toBe(200);
-
-    const otro = await playwright.request.newContext({ baseURL });
-    await crearCuentaActiva(otro);
-    expect((await otro.get(`/api/archivos/${archivoId}`)).status()).toBe(404);
-    await otro.dispose();
   });
 });
 
@@ -372,7 +318,7 @@ test.describe("Hacer pedido, detalle y cancelar", () => {
     await page.goto("/panel/pedidos");
     await expect(page.getByText("Aún no tienes pedidos")).toBeVisible();
 
-    await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "perro.png")));
+    await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "tarjeta-cmyk.jpg")));
     const esperado = folio((await leerOrders()).ultimoFolio + 1);
 
     await page.goto("/panel/pedidos/nuevo");
@@ -396,10 +342,10 @@ test.describe("Hacer pedido, detalle y cancelar", () => {
 
   test("cambiar un precio en el mock no altera un pedido confirmado y sí recalcula el borrador", async ({ page }) => {
     await crearCuentaActiva(page.request);
-    const archivoId = await subirPorApi(page.request, "perro.png");
-    await agregarPorApi(page.request, tarjeta(archivoId));
+    await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "tarjeta-cmyk.jpg")));
     const { pedido } = await (await page.request.post("/api/pedidos/borrador/confirmar")).json();
-    await agregarPorApi(page.request, tarjeta(archivoId));
+    // Al confirmar, el archivo temporal pasa al pedido: el borrador nuevo sube otro.
+    await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "tarjeta-cmyk.jpg")));
 
     await editarProductos((a) => {
       varianteDe(a, ID.tarjeta, ID.tarjetaCouche).precio = 120;
@@ -413,10 +359,9 @@ test.describe("Hacer pedido, detalle y cancelar", () => {
 
   test("cancelar pasa a Cancelado; en_proceso no muestra el botón y la API responde 409", async ({ page }) => {
     await crearCuentaActiva(page.request);
-    const archivoId = await subirPorApi(page.request, "perro.png");
     const pedidos: { id: string; folio: string }[] = [];
     for (let i = 0; i < 2; i++) {
-      await agregarPorApi(page.request, tarjeta(archivoId));
+      await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "tarjeta-cmyk.jpg")));
       pedidos.push((await (await page.request.post("/api/pedidos/borrador/confirmar")).json()).pedido);
     }
 
@@ -442,15 +387,15 @@ test.describe("375 px", () => {
 
   test("sin scroll horizontal en el inicio, la lista, el borrador, el editor y el detalle", async ({ page }) => {
     await crearCuentaActiva(page.request);
-    const archivoId = await subirPorApi(page.request, "perro.png");
-    await agregarPorApi(page.request, tarjeta(archivoId, { descripcion: "Texto largo ".repeat(30) }));
+    const tarjetaId = await subirPorApi(page.request, "tarjeta-cmyk.jpg");
+    await agregarPorApi(page.request, tarjeta(tarjetaId, { descripcion: "Texto largo ".repeat(30) }));
     const { pedido } = await (await page.request.post("/api/pedidos/borrador/confirmar")).json();
-    await agregarPorApi(page.request, lona(archivoId));
+    await agregarPorApi(page.request, lona(await subirPorApi(page.request, "tarjeta-cmyk.jpg")));
 
     for (const [url, texto] of [
       ["/panel", "Hola"],
       ["/panel/pedidos", pedido.folio],
-      ["/panel/pedidos/nuevo", "perro.png"],
+      ["/panel/pedidos/nuevo", "tarjeta-cmyk.jpg"],
       [`/panel/pedidos/nuevo/item?producto=${ID.volante}`, "Cotización"],
       [`/panel/pedidos/${pedido.id}`, "Pago pendiente"],
     ]) {

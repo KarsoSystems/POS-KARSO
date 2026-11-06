@@ -27,15 +27,15 @@ describe("formatFolio", () => {
   });
 });
 
-describe("orders.json de la SPEC 02", () => {
-  it("un archivo de versión 1 se descarta y se reinicia vacío en la versión 2", async () => {
+describe("orders.json de versiones anteriores", () => {
+  it.each([1, 2])("un archivo de versión %i se descarta y se reinicia vacío en la versión 3", async (version) => {
     const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const v1 = { version: 1, ultimoFolio: 3, pedidos: [{ id: "viejo", userId: "u1", estado: "borrador", items: [] }] };
+    const v1 = { version, ultimoFolio: 3, pedidos: [{ id: "viejo", userId: "u1", estado: "borrador", items: [] }] };
     await writeFile(path.join(dir, "orders.json"), JSON.stringify(v1));
 
     expect(await repo.findBorrador("u1")).toBeNull();
-    expect(await readOrders()).toEqual({ version: 2, ultimoFolio: 0, pedidos: [] });
-    expect(aviso).toHaveBeenCalledWith(expect.stringMatching(/orders\.json: versión 1 descartada/));
+    expect(await readOrders()).toEqual({ version: 3, ultimoFolio: 0, pedidos: [] });
+    expect(aviso).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`orders\\.json: versión ${version} descartada`)));
     aviso.mockRestore();
   });
 });
@@ -59,7 +59,7 @@ describe("borrador", () => {
       canceladoAt: null,
     });
     expect(await repo.findBorrador("u1")).toEqual(pedido);
-    expect(await readOrders()).toEqual({ version: 2, ultimoFolio: 0, pedidos: [pedido] });
+    expect(await readOrders()).toEqual({ version: 3, ultimoFolio: 0, pedidos: [pedido] });
   });
 
   it("findBorrador devuelve null si el usuario no tiene", async () => {
@@ -148,6 +148,16 @@ describe("confirmar", () => {
       p.subtotal = 2500;
     });
     expect(pedido.subtotal).toBe(2500);
+  });
+
+  it("el cambio recibe el folio que se va a asignar", async () => {
+    await repo.confirmar((await repo.crearBorrador("u1")).id);
+    const folios: string[] = [];
+    const pedido = await repo.confirmar((await repo.crearBorrador("u2")).id, (_p, folio) => {
+      folios.push(folio);
+    });
+    expect(folios).toEqual(["P-000002"]);
+    expect(pedido.folio).toBe("P-000002");
   });
 
   it("si el cambio lanza, no se confirma ni se gasta folio", async () => {

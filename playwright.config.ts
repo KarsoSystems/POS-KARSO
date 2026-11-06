@@ -3,6 +3,7 @@ import {
   BANNERS_ORIGINAL,
   BANNERS_PATH,
   DATA_DIR,
+  E2E_AUTH_SECRET,
   E2E_DIR,
   PRODUCTOS_ORIGINAL,
   PRODUCTOS_PATH,
@@ -36,7 +37,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       // Secreto solo para e2e; no depende del .env.local del desarrollador.
-      AUTH_SECRET: "e2e-secret-solo-para-pruebas-0123456789",
+      AUTH_SECRET: E2E_AUTH_SECRET,
       DATA_DIR,
       UPLOADS_DIR,
       PRODUCTOS_PATH,

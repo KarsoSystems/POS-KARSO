@@ -23,10 +23,14 @@ export interface VerificationRepository {
   delete(userId: string): Promise<void>;
 }
 
+export type ArchivoPatch = Partial<Pick<Archivo, "bytes" | "estado" | "metadatos" | "miniatura" | "subidoEn">>;
+
 export interface ArchivoRepository {
-  /** Guarda los datos del archivo ya escrito en el almacenamiento; asigna createdAt. */
+  /** Guarda los datos del archivo; asigna createdAt. */
   create(input: Omit<Archivo, "createdAt">): Promise<Archivo>;
   findById(id: string): Promise<Archivo | null>;
+  /** Lanza ArchivoNoEncontradoError. */
+  update(id: string, patch: ArchivoPatch): Promise<Archivo>;
   delete(id: string): Promise<void>;
 }
 
@@ -35,6 +39,9 @@ export interface ArchivoRepository {
  * lanza, no se guarda nada. id, userId, folio y createdAt no se pueden cambiar.
  */
 export type CambiarPedido = (pedido: Pedido) => void | Promise<void>;
+
+/** Como CambiarPedido, pero recibe el folio que se asignará si la confirmación sale bien. */
+export type CambiarConfirmacion = (pedido: Pedido, folio: string) => void | Promise<void>;
 
 export interface PedidoRepository {
   /** El borrador del usuario o null. Hay a lo más uno por usuario. */
@@ -47,11 +54,12 @@ export interface PedidoRepository {
   /** Lanza PedidoNoEncontradoError o lo que lance `cambiar`. */
   update(id: string, cambiar: CambiarPedido): Promise<Pedido>;
   /**
-   * Aplica `cambiar` (p. ej. recalcular y validar) y confirma el borrador: asigna
-   * el folio siguiente, pasa a `pedido` y fija confirmadoAt, todo en el mismo lock.
+   * Aplica `cambiar` (p. ej. recalcular, validar y copiar los archivos a la carpeta
+   * del folio) y confirma el borrador: asigna el folio siguiente, pasa a `pedido` y
+   * fija confirmadoAt, todo en el mismo lock. Si `cambiar` lanza, el folio no se gasta.
    * Lanza PedidoNoEncontradoError, EstadoPedidoInvalidoError o lo que lance `cambiar`.
    */
-  confirmar(id: string, cambiar?: CambiarPedido): Promise<Pedido>;
+  confirmar(id: string, cambiar?: CambiarConfirmacion): Promise<Pedido>;
 }
 
 export class PedidoNoEncontradoError extends Error {
@@ -65,6 +73,13 @@ export class EstadoPedidoInvalidoError extends Error {
   constructor(id: string, estado: string) {
     super(`El pedido ${id} está en estado ${estado}`);
     this.name = "EstadoPedidoInvalidoError";
+  }
+}
+
+export class ArchivoNoEncontradoError extends Error {
+  constructor(id: string) {
+    super(`Archivo ${id} no encontrado`);
+    this.name = "ArchivoNoEncontradoError";
   }
 }
 

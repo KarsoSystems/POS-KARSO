@@ -1,5 +1,4 @@
 import { requireSessionUser } from "@/server/auth/guards";
-import { archivoKey } from "@/server/domain/archivo";
 import { apiError } from "@/server/http/responses";
 import { archivoRepository } from "@/server/repositories";
 import { fileStorage } from "@/server/storage";
@@ -13,13 +12,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const archivo = await archivoRepository.findById(id);
   // Un archivo de otro usuario responde igual que uno inexistente.
-  if (!archivo || archivo.userId !== guard.user.id) return noEncontrado();
+  // Uno pendiente aún no tiene binario confirmado.
+  if (!archivo || archivo.userId !== guard.user.id || archivo.estado !== "subido") return noEncontrado();
 
-  const contenido = await fileStorage.get(archivoKey(archivo));
+  const contenido = await fileStorage.get(archivo.key);
   if (!contenido) return noEncontrado();
 
-  // JPG/PNG se ven en línea (<img>); PDF, AI y PSD siempre se descargan.
-  const disposicion = archivo.previsualizable ? "inline" : "attachment";
+  // Solo JPG se ve en línea; TIFF, PDF, AI, EPS y SVG siempre se descargan (un SVG
+  // en línea ejecutaría sus scripts en nuestro origen).
+  const disposicion = archivo.mime === "image/jpeg" ? "inline" : "attachment";
   return new Response(contenido, {
     headers: {
       "content-type": archivo.mime, // fijo por extensión, nunca el del navegador
