@@ -1,6 +1,6 @@
 # SPEC 06 — Checkout: sucursal de entrega, factura y promociones
 
-> **Estado:** Approved
+> **Estado:** Approved 
 > **Depende de:** SPEC 02, SPEC 04, SPEC 05
 > **Fecha:** 2026-11-06
 > **Objetivo:** Que el cliente elija en el borrador la sucursal donde recoge, si requiere factura (con sus datos fiscales y el IVA) y hasta los códigos de promoción que permita la configuración, y que el pedido guarde esos datos con los totales de KARSO 5.4: subtotal, descuento, base de IVA, IVA y total.
