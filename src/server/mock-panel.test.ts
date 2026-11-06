@@ -5,12 +5,21 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ProductosArchivo } from "@/lib/catalogo/schema";
 import {
   BANNERS_PATH,
+  CONFIGURACION_PATH,
   MockPanelInvalidoError,
   PRODUCTOS_PATH,
+  PROMOCIONES_PATH,
+  SUCURSALES_PATH,
   cargarBanners,
+  cargarConfiguracion,
   cargarProductos,
+  cargarPromociones,
+  cargarSucursales,
   validarBanners,
+  validarConfiguracion,
   validarProductos,
+  validarPromociones,
+  validarSucursales,
 } from "./mock-panel";
 
 let productos: ProductosArchivo;
@@ -48,6 +57,35 @@ describe("mock del panel de ejemplo", () => {
   it("banners.json pasa la validación", async () => {
     const archivo = await cargarBanners();
     expect(archivo.banners).toHaveLength(4);
+  });
+
+  it("sucursales.json: las 3 sucursales, KARSO Centro como en KARSO 6.3", async () => {
+    const archivo = await cargarSucursales();
+    expect(archivo.ejemplo).toBe(true);
+    expect(archivo.sucursales.map((s) => s.nombre)).toEqual(["KARSO Centro", "KARSO Cumbres", "KARSO San Nicolás"]);
+    expect(archivo.sucursales[0]).toMatchObject({ _id: "6720a1f0c1a2b3c4d5e60100", clave: 0, telefono: "8180001111" });
+  });
+
+  it("promociones.json: los 7 códigos de prueba", async () => {
+    const { promociones } = await cargarPromociones();
+    expect(promociones.map((p) => p.codigo)).toEqual([
+      "BUENFIN10",
+      "KARSO10",
+      "BIENVENIDA5",
+      "MAYOREO25",
+      "VERANO15",
+      "SUCURSAL20",
+      "PAUSA30",
+    ]);
+    expect(promociones[0]).toMatchObject({ porcentaje: 10, vigencia: { inicio: "2026-11-13T06:00:00Z" } });
+  });
+
+  it("configuracion.json: IVA 16 %, 2 códigos, suma y tope de 30 %", async () => {
+    expect((await cargarConfiguracion()).configuracion).toEqual({
+      zonaHoraria: "America/Monterrey",
+      iva: { tasa: 0.16 },
+      promociones: { maxCodigosPorPedido: 2, modoCombinacion: "suma", descuentoMaximoPorcentaje: 30 },
+    });
   });
 });
 
@@ -123,5 +161,39 @@ describe("banners inválidos", () => {
     const invalido = structuredClone(banners) as { banners: { _id: string }[] };
     invalido.banners[1]._id = invalido.banners[0]._id;
     expect(() => validarBanners(invalido)).toThrow(/banners\.1\._id: Id repetido/);
+  });
+});
+
+describe("sucursales, promociones y configuración inválidas", () => {
+  const leer = async (ruta: string) => JSON.parse(await readFile(ruta, "utf8"));
+
+  it("una sucursal con clave repetida o teléfono de 8 dígitos falla", async () => {
+    const sucursales = await leer(SUCURSALES_PATH);
+    sucursales.sucursales[1].clave = 0;
+    expect(() => validarSucursales(sucursales)).toThrow(/sucursales\.1\.clave: Clave repetida: 0/);
+    const telefono = await leer(SUCURSALES_PATH);
+    telefono.sucursales[0].telefono = "80001111";
+    expect(() => validarSucursales(telefono)).toThrow(/sucursales\.0\.telefono/);
+  });
+
+  it("un código en minúsculas, repetido o de más de 100 % falla", async () => {
+    const minusculas = await leer(PROMOCIONES_PATH);
+    minusculas.promociones[0].codigo = "buenfin10";
+    expect(() => validarPromociones(minusculas)).toThrow(/promociones\.0\.codigo: El código debe ir en mayúsculas/);
+    const repetido = await leer(PROMOCIONES_PATH);
+    repetido.promociones[1].codigo = "BUENFIN10";
+    expect(() => validarPromociones(repetido)).toThrow(/Código repetido: "BUENFIN10"/);
+    const porcentaje = await leer(PROMOCIONES_PATH);
+    porcentaje.promociones[0].porcentaje = 120;
+    expect(() => validarPromociones(porcentaje)).toThrow(/promociones\.0\.porcentaje/);
+  });
+
+  it("un modo de combinación desconocido o una tasa de IVA de 16 falla", async () => {
+    const modo = await leer(CONFIGURACION_PATH);
+    modo.configuracion.promociones.modoCombinacion = "maximo";
+    expect(() => validarConfiguracion(modo)).toThrow(/configuracion\.promociones\.modoCombinacion/);
+    const tasa = await leer(CONFIGURACION_PATH);
+    tasa.configuracion.iva.tasa = 16;
+    expect(() => validarConfiguracion(tasa)).toThrow(/configuracion\.iva\.tasa/);
   });
 });

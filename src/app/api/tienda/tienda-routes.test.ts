@@ -6,14 +6,22 @@ const env = vi.hoisted(() => {
   const base = `${process.env.TMPDIR ?? "/tmp"}/tienda-routes-${process.pid}`;
   process.env.PRODUCTOS_PATH = `${base}/productos.json`;
   process.env.BANNERS_PATH = `${base}/banners.json`;
-  return { base, productosPath: process.env.PRODUCTOS_PATH, bannersPath: process.env.BANNERS_PATH };
+  process.env.SUCURSALES_PATH = `${base}/sucursales.json`;
+  return {
+    base,
+    productosPath: process.env.PRODUCTOS_PATH,
+    bannersPath: process.env.BANNERS_PATH,
+    sucursalesPath: process.env.SUCURSALES_PATH,
+  };
 });
 
 import type { Banner } from "@/lib/banners/schema";
 import type { Producto, ProductosArchivo } from "@/lib/catalogo/schema";
-import { BANNERS_PATH, PRODUCTOS_PATH } from "@/server/mock-panel";
+import type { Sucursal, SucursalesArchivo } from "@/lib/sucursales/schema";
+import { BANNERS_PATH, PRODUCTOS_PATH, SUCURSALES_PATH } from "@/server/mock-panel";
 import { GET as getBanners } from "./banners/route";
 import { GET as getProductos } from "./productos/route";
+import { GET as getSucursales } from "./sucursales/route";
 
 async function editarProductos(cambiar: (archivo: ProductosArchivo) => void) {
   const archivo = JSON.parse(await readFile(env.productosPath, "utf8"));
@@ -33,6 +41,7 @@ beforeEach(async () => {
   await mkdir(env.base, { recursive: true });
   await copyFile(PRODUCTOS_PATH, env.productosPath);
   await copyFile(BANNERS_PATH, env.bannersPath);
+  await copyFile(SUCURSALES_PATH, env.sucursalesPath);
 });
 
 afterEach(() => {
@@ -125,5 +134,43 @@ describe("GET /api/tienda/banners", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-11-17T06:00:00Z"));
     expect(await titulosBanners()).not.toContain("Buen Fin: 10% en tarjetas");
+  });
+});
+
+describe("GET /api/tienda/sucursales", () => {
+  async function editarSucursales(cambiar: (archivo: SucursalesArchivo) => void) {
+    const archivo = JSON.parse(await readFile(env.sucursalesPath, "utf8"));
+    cambiar(archivo);
+    await writeFile(env.sucursalesPath, JSON.stringify(archivo));
+  }
+  const nombres = async () => ((await (await getSucursales()).json()).sucursales as Sucursal[]).map((s) => s.nombre);
+
+  it("responde sin sesión con las 3 activas, por clave", async () => {
+    const res = await getSucursales();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ejemplo).toBe(true);
+    expect(body.sucursales.map((s: Sucursal) => s.nombre)).toEqual(["KARSO Centro", "KARSO Cumbres", "KARSO San Nicolás"]);
+    expect(body.sucursales[0]).toMatchObject({ horario: "Lunes a viernes 9:00–19:00, sábado 9:00–14:00" });
+  });
+
+  it("una sucursal inactiva no aparece y el orden sigue la clave, no el del archivo", async () => {
+    await editarSucursales((archivo) => {
+      archivo.sucursales[1].activa = false;
+      archivo.sucursales.reverse();
+    });
+    expect(await nombres()).toEqual(["KARSO Centro", "KARSO San Nicolás"]);
+  });
+
+  it("un mock inválido responde 500 SUCURSALES_INVALIDAS y deja el campo en el log", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    await editarSucursales((archivo) => {
+      archivo.sucursales[0].direccion.codigoPostal = "640";
+    });
+    const res = await getSucursales();
+    expect(res.status).toBe(500);
+    expect((await res.json()).error.code).toBe("SUCURSALES_INVALIDAS");
+    expect(log).toHaveBeenCalledWith("[mock-panel]", expect.stringMatching(/sucursales\.0\.direccion\.codigoPostal/));
+    log.mockRestore();
   });
 });

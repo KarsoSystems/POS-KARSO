@@ -13,6 +13,12 @@ export const PRODUCTOS_PATH = path.join(BASE, "productos.json");
 export const BANNERS_PATH = path.join(BASE, "banners.json");
 export const PRODUCTOS_ORIGINAL = path.join(MOCK_PANEL, "productos.json");
 export const BANNERS_ORIGINAL = path.join(MOCK_PANEL, "banners.json");
+export const SUCURSALES_PATH = path.join(BASE, "sucursales.json");
+export const PROMOCIONES_PATH = path.join(BASE, "promociones.json");
+export const CONFIGURACION_PATH = path.join(BASE, "configuracion.json");
+export const SUCURSALES_ORIGINAL = path.join(MOCK_PANEL, "sucursales.json");
+export const PROMOCIONES_ORIGINAL = path.join(MOCK_PANEL, "promociones.json");
+export const CONFIGURACION_ORIGINAL = path.join(MOCK_PANEL, "configuracion.json");
 /** Secreto del servidor de e2e (no depende del .env.local); los tests lo usan para firmar URLs de subida. */
 export const E2E_AUTH_SECRET = "e2e-secret-solo-para-pruebas-0123456789";
 export { BASE as E2E_DIR };

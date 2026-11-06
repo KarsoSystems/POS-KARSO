@@ -6,9 +6,15 @@ import type { ProductosArchivo, Variante } from "../src/lib/catalogo/schema";
 import {
   BANNERS_ORIGINAL,
   BANNERS_PATH,
+  CONFIGURACION_ORIGINAL,
+  CONFIGURACION_PATH,
   DATA_DIR,
   PRODUCTOS_ORIGINAL,
   PRODUCTOS_PATH,
+  PROMOCIONES_ORIGINAL,
+  PROMOCIONES_PATH,
+  SUCURSALES_ORIGINAL,
+  SUCURSALES_PATH,
   UPLOADS_DIR,
 } from "./rutas";
 
@@ -19,6 +25,8 @@ export const ID = {
   tarjeta: "6720a1f0c1a2b3c4d5e60201",
   tarjetaCouche: "6720a1f0c1a2b3c4d5e60211",
   tarjetaLaminada: "6720a1f0c1a2b3c4d5e60212", // reverso obligatorio
+  centro: "6720a1f0c1a2b3c4d5e60100", // sucursales del mock del panel
+  cumbres: "6720a1f0c1a2b3c4d5e60101",
   volanteBond: "6720a1f0c1a2b3c4d5e60233", // reverso no_aplica
   lona: "6720a1f0c1a2b3c4d5e60202",
   lona720: "6720a1f0c1a2b3c4d5e60221",
@@ -44,7 +52,7 @@ export async function leerOrders(): Promise<{
   try {
     return JSON.parse(await readFile(path.join(DATA_DIR, "orders.json"), "utf8"));
   } catch {
-    return { version: 3, ultimoFolio: 0, pedidos: [] };
+    return { version: 4, ultimoFolio: 0, pedidos: [] };
   }
 }
 
@@ -81,6 +89,9 @@ export async function editarBanners(cambiar: (archivo: BannersArchivo) => void) 
 export async function restaurarMock() {
   await copyFile(PRODUCTOS_ORIGINAL, PRODUCTOS_PATH);
   await copyFile(BANNERS_ORIGINAL, BANNERS_PATH);
+  await copyFile(SUCURSALES_ORIGINAL, SUCURSALES_PATH);
+  await copyFile(PROMOCIONES_ORIGINAL, PROMOCIONES_PATH);
+  await copyFile(CONFIGURACION_ORIGINAL, CONFIGURACION_PATH);
 }
 
 /**
@@ -121,6 +132,21 @@ export const lona = (archivoId: string, cambios: Record<string, unknown> = {}) =
   cantidad: 2,
   ...cambios,
 });
+
+/** Cambios del checkout del borrador por la API (sucursal, factura, datos fiscales). */
+export async function checkoutPorApi(request: APIRequestContext, cambios: Record<string, unknown>) {
+  const res = await request.patch("/api/pedidos/borrador", { data: cambios });
+  expect(res.status()).toBe(200);
+  return (await res.json()).pedido;
+}
+
+/** "Hacer pedido" por la API con la sucursal elegida (obligatoria desde la SPEC 06). */
+export async function confirmarPorApi(request: APIRequestContext, sucursalEntregaId = ID.centro) {
+  await checkoutPorApi(request, { sucursalEntregaId });
+  const res = await request.post("/api/pedidos/borrador/confirmar");
+  expect(res.status()).toBe(201);
+  return (await res.json()).pedido as { id: string; folio: string; total: number; productos: LineaGuardada[] };
+}
 
 export async function agregarPorApi(request: APIRequestContext, linea: Record<string, unknown>) {
   const res = await request.post("/api/pedidos/borrador/items", { data: linea });

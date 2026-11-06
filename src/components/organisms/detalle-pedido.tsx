@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, FileText, Loader2, MapPin, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { FormError } from "@/components/atoms/form-error";
@@ -21,9 +21,91 @@ import {
 import { Skeleton } from "@/components/atoms/skeleton";
 import { ApiError } from "@/lib/api-client";
 import { formatearFechaHora } from "@/lib/pedidos/formato";
+import type { Pedido } from "@/lib/pedidos-api";
+import { REGIMENES_FISCALES, USOS_CFDI } from "@/lib/validation/fiscal";
 import { useCancelarPedido, usePedido } from "@/hooks/use-pedidos";
 
 const mensajeDe = (error: unknown, porDefecto: string) => (error instanceof ApiError ? error.message : porDefecto);
+
+/** Dónde recoge el cliente: la copia de la sucursal que guardó el pedido al hacerse. */
+function Entrega({ sucursal }: { sucursal: Pedido["sucursalEntrega"] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <MapPin className="size-4" aria-hidden />
+          Entrega
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-1 text-sm">
+        {sucursal ? (
+          <>
+            <p className="font-medium">{sucursal.nombre}</p>
+            <p className="text-muted-foreground">
+              {sucursal.direccion.calle}, {sucursal.direccion.colonia}, {sucursal.direccion.ciudad},{" "}
+              {sucursal.direccion.estado}, C.P. {sucursal.direccion.codigoPostal}
+            </p>
+            <p className="text-muted-foreground">{sucursal.horario}</p>
+            <p className="text-muted-foreground">Tel. {sucursal.telefono}</p>
+          </>
+        ) : (
+          <p className="text-muted-foreground">Sin sucursal de entrega</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Datos con los que la imprenta emitirá la factura (no se timbra en línea). */
+function Factura({ datos }: { datos: NonNullable<Pedido["datosFiscales"]> }) {
+  const regimen = REGIMENES_FISCALES.find((r) => r.clave === datos.regimenFiscal);
+  const uso = USOS_CFDI.find((u) => u.clave === datos.usoCfdi);
+  const fila = "grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2";
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <FileText className="size-4" aria-hidden />
+          Factura
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <dl className="space-y-1 text-sm">
+          <div className={fila}>
+            <dt className="text-muted-foreground">RFC</dt>
+            <dd className="font-mono">{datos.rfc}</dd>
+          </div>
+          <div className={fila}>
+            <dt className="text-muted-foreground">Razón social</dt>
+            <dd className="break-words">{datos.razonSocial}</dd>
+          </div>
+          <div className={fila}>
+            <dt className="text-muted-foreground">Régimen</dt>
+            <dd>
+              {datos.regimenFiscal}
+              {regimen && ` · ${regimen.descripcion}`}
+            </dd>
+          </div>
+          <div className={fila}>
+            <dt className="text-muted-foreground">Uso del CFDI</dt>
+            <dd>
+              {datos.usoCfdi}
+              {uso && ` · ${uso.descripcion}`}
+            </dd>
+          </div>
+          <div className={fila}>
+            <dt className="text-muted-foreground">Código postal</dt>
+            <dd>{datos.codigoPostal}</dd>
+          </div>
+          <div className={fila}>
+            <dt className="text-muted-foreground">Correo</dt>
+            <dd className="break-all">{datos.correoFactura}</dd>
+          </div>
+        </dl>
+      </CardContent>
+    </Card>
+  );
+}
 
 interface ConfirmarCancelarProps {
   folio: string;
@@ -141,7 +223,7 @@ export function DetallePedido({ id, recienConfirmado }: { id: string; recienConf
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
             <section aria-label="Ítems del pedido">
               <ul className="space-y-3">
                 {pedido.productos.map((linea) => (
@@ -150,18 +232,22 @@ export function DetallePedido({ id, recienConfirmado }: { id: string; recienConf
               </ul>
             </section>
 
-            <Card className="lg:sticky lg:top-4">
-              <CardHeader>
-                <CardTitle className="text-base">Resumen</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <TotalesPedido totales={pedido} />
-                <p className="flex items-center gap-2 rounded-md bg-muted p-2 text-sm">
-                  <Clock className="size-4 shrink-0" aria-hidden />
-                  Pago pendiente
-                </p>
-              </CardContent>
-            </Card>
+            <div className="min-w-0 space-y-4">
+              <Entrega sucursal={pedido.sucursalEntrega} />
+              {pedido.requiereFactura && pedido.datosFiscales && <Factura datos={pedido.datosFiscales} />}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Resumen</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <TotalesPedido totales={pedido} confirmado />
+                  <p className="flex items-center gap-2 rounded-md bg-muted p-2 text-sm">
+                    <Clock className="size-4 shrink-0" aria-hidden />
+                    Pago pendiente
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
           {pedido.folio && (

@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "ejemplo": true,
+  "sucursales": [
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60100",
+      "clave": 0,
+      "nombre": "KARSO Centro",
+      "direccion": {
+        "calle": "Calle Morelos 456",
+        "colonia": "Centro",
+        "ciudad": "Monterrey",
+        "estado": "Nuevo León",
+        "codigoPostal": "64000"
+      },
+      "telefono": "8180001111",
+      "horario": "Lunes a viernes 9:00–19:00, sábado 9:00–14:00",
+      "activa": true,
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60101",
+      "clave": 1,
+      "nombre": "KARSO Cumbres",
+      "direccion": {
+        "calle": "Av. Paseo de los Leones 1200",
+        "colonia": "Cumbres 3er Sector",
+        "ciudad": "Monterrey",
+        "estado": "Nuevo León",
+        "codigoPostal": "64610"
+      },
+      "telefono": "8180002222",
+      "horario": "Lunes a viernes 9:00–19:00, sábado 9:00–14:00",
+      "activa": true,
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60102",
+      "clave": 2,
+      "nombre": "KARSO San Nicolás",
+      "direccion": {
+        "calle": "Av. Universidad 850",
+        "colonia": "Anáhuac",
+        "ciudad": "San Nicolás de los Garza",
+        "estado": "Nuevo León",
+        "codigoPostal": "66450"
+      },
+      "telefono": "8180003333",
+      "horario": "Lunes a viernes 9:00–18:00, sábado 9:00–13:00",
+      "activa": true,
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    }
+  ]
+}

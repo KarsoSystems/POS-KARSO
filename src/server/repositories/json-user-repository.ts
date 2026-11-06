@@ -8,9 +8,21 @@ import {
   type UserRepository,
 } from "./types";
 
+// Versión 2 (SPEC 06): datos fiscales y usos de promociones. Los usuarios no son
+// datos de prueba desechables (habría que registrarse de nuevo): la versión 1 se migra.
 interface UsersFile {
-  version: 1;
+  version: 2;
   users: User[];
+}
+
+type UserV1 = Omit<User, "datosFiscales" | "usosPromociones">;
+
+export function migrarUsers(data: { version: number } & Record<string, unknown>): UsersFile {
+  if (data.version !== 1) throw new Error(`users.json: versión ${data.version} no soportada`);
+  return {
+    version: 2,
+    users: (data.users as UserV1[]).map((user) => ({ ...user, datosFiscales: null, usosPromociones: [] })),
+  };
 }
 
 interface CountersFile {
@@ -19,7 +31,9 @@ interface CountersFile {
 }
 
 export function createJsonUserRepository(dataDir: string = resolveDataDir()): UserRepository {
-  const users = createJsonStore<UsersFile>("users.json", { version: 1, users: [] }, dataDir);
+  const users = createJsonStore<UsersFile>("users.json", { version: 2, users: [] }, dataDir, {
+    versionDistinta: { migrar: migrarUsers },
+  });
   const counters = createJsonStore<CountersFile>(
     "counters.json",
     { version: 1, idCliente: 0 },
@@ -53,6 +67,8 @@ export function createJsonUserRepository(dataDir: string = resolveDataDir()): Us
           correo,
           id: randomUUID(),
           idCliente: formatIdCliente(consecutivo),
+          datosFiscales: null,
+          usosPromociones: [],
           createdAt: now,
           updatedAt: now,
         };
@@ -84,6 +100,34 @@ export function createJsonUserRepository(dataDir: string = resolveDataDir()): Us
         };
         data.users[index] = updated;
         return updated;
+      });
+    },
+
+    async contarUsosPromocion(promocionId, userId) {
+      const data = await users.read();
+      let totales = 0;
+      let delCliente = 0;
+      for (const user of data.users) {
+        const usos = user.usosPromociones.filter((u) => u.promocionId === promocionId).length;
+        totales += usos;
+        if (user.id === userId) delCliente = usos;
+      }
+      return { totales, delCliente };
+    },
+
+    registrarUsosPromociones(userId, usos) {
+      return users.update((data) => {
+        const user = data.users.find((u) => u.id === userId);
+        if (!user) throw new UsuarioNoEncontradoError(userId);
+        user.usosPromociones.push(...usos);
+      });
+    },
+
+    liberarUsosPromociones(userId, pedidoId) {
+      return users.update((data) => {
+        const user = data.users.find((u) => u.id === userId);
+        if (!user) throw new UsuarioNoEncontradoError(userId);
+        user.usosPromociones = user.usosPromociones.filter((u) => u.pedidoId !== pedidoId);
       });
     },
   };

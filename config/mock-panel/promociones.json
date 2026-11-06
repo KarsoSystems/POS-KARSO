@@ -1,0 +1,148 @@
+{
+  "version": 1,
+  "promociones": [
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60601",
+      "codigo": "BUENFIN10",
+      "descripcion": "Buen Fin 2026",
+      "porcentaje": 10,
+      "vigencia": {
+        "inicio": "2026-11-13T06:00:00Z",
+        "fin": "2026-11-17T05:59:59Z"
+      },
+      "usosMaximos": 100,
+      "usosPorCliente": 1,
+      "usosActuales": 0,
+      "canales": [
+        "en_linea",
+        "mostrador"
+      ],
+      "activa": true,
+      "creadoPor": "6720a1f0c1a2b3c4d5e60009",
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60602",
+      "codigo": "KARSO10",
+      "descripcion": "10 % en línea",
+      "porcentaje": 10,
+      "vigencia": {
+        "inicio": "2026-11-01T06:00:00Z",
+        "fin": "2030-12-31T05:59:59Z"
+      },
+      "usosMaximos": null,
+      "usosPorCliente": null,
+      "usosActuales": 0,
+      "canales": [
+        "en_linea"
+      ],
+      "activa": true,
+      "creadoPor": "6720a1f0c1a2b3c4d5e60009",
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60603",
+      "codigo": "BIENVENIDA5",
+      "descripcion": "Bienvenida: un uso por cliente",
+      "porcentaje": 5,
+      "vigencia": {
+        "inicio": "2026-11-01T06:00:00Z",
+        "fin": "2030-12-31T05:59:59Z"
+      },
+      "usosMaximos": null,
+      "usosPorCliente": 1,
+      "usosActuales": 0,
+      "canales": [
+        "en_linea",
+        "mostrador"
+      ],
+      "activa": true,
+      "creadoPor": "6720a1f0c1a2b3c4d5e60009",
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60604",
+      "codigo": "MAYOREO25",
+      "descripcion": "Mayoreo",
+      "porcentaje": 25,
+      "vigencia": {
+        "inicio": "2026-11-01T06:00:00Z",
+        "fin": "2030-12-31T05:59:59Z"
+      },
+      "usosMaximos": null,
+      "usosPorCliente": null,
+      "usosActuales": 0,
+      "canales": [
+        "en_linea"
+      ],
+      "activa": true,
+      "creadoPor": "6720a1f0c1a2b3c4d5e60009",
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60605",
+      "codigo": "VERANO15",
+      "descripcion": "Verano 2026",
+      "porcentaje": 15,
+      "vigencia": {
+        "inicio": "2026-06-01T06:00:00Z",
+        "fin": "2026-08-31T05:59:59Z"
+      },
+      "usosMaximos": null,
+      "usosPorCliente": null,
+      "usosActuales": 0,
+      "canales": [
+        "en_linea",
+        "mostrador"
+      ],
+      "activa": true,
+      "creadoPor": "6720a1f0c1a2b3c4d5e60009",
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60606",
+      "codigo": "SUCURSAL20",
+      "descripcion": "Solo en sucursal",
+      "porcentaje": 20,
+      "vigencia": {
+        "inicio": "2026-11-01T06:00:00Z",
+        "fin": "2030-12-31T05:59:59Z"
+      },
+      "usosMaximos": null,
+      "usosPorCliente": null,
+      "usosActuales": 0,
+      "canales": [
+        "mostrador"
+      ],
+      "activa": true,
+      "creadoPor": "6720a1f0c1a2b3c4d5e60009",
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    },
+    {
+      "_id": "6720a1f0c1a2b3c4d5e60607",
+      "codigo": "PAUSA30",
+      "descripcion": "Pausada desde el panel",
+      "porcentaje": 30,
+      "vigencia": {
+        "inicio": "2026-11-01T06:00:00Z",
+        "fin": "2030-12-31T05:59:59Z"
+      },
+      "usosMaximos": null,
+      "usosPorCliente": null,
+      "usosActuales": 0,
+      "canales": [
+        "en_linea"
+      ],
+      "activa": false,
+      "creadoPor": "6720a1f0c1a2b3c4d5e60009",
+      "creadoEn": "2026-11-01T18:00:00Z",
+      "actualizadoEn": "2026-11-01T18:00:00Z"
+    }
+  ]
+}

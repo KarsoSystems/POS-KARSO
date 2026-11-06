@@ -71,6 +71,9 @@ describe("pedidosApi", () => {
     ["agregarItem", () => pedidosApi.agregarItem(item), "POST", "/api/pedidos/borrador/items"],
     ["editarItem", () => pedidosApi.editarItem("i1", item), "PUT", "/api/pedidos/borrador/items/i1"],
     ["quitarItem", () => pedidosApi.quitarItem("i1"), "DELETE", "/api/pedidos/borrador/items/i1"],
+    ["cambiarCheckout", () => pedidosApi.cambiarCheckout({}), "PATCH", "/api/pedidos/borrador"],
+    ["aplicarCodigo", () => pedidosApi.aplicarCodigo("KARSO10"), "POST", "/api/pedidos/borrador/promociones"],
+    ["quitarCodigo", () => pedidosApi.quitarCodigo("A/B"), "DELETE", "/api/pedidos/borrador/promociones/A%2FB"],
     ["confirmar", () => pedidosApi.confirmar(), "POST", "/api/pedidos/borrador/confirmar"],
     ["listar", () => pedidosApi.listar(), "GET", "/api/pedidos"],
     ["detalle", () => pedidosApi.detalle("p1"), "GET", "/api/pedidos/p1"],
@@ -88,6 +91,14 @@ describe("pedidosApi", () => {
       headers: { "content-type": "application/json" },
       body: '{"cantidad":10}',
     });
+  });
+
+  it("cambiarCheckout y aplicarCodigo mandan su cuerpo como JSON", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, {}));
+    await pedidosApi.cambiarCheckout({ requiereFactura: true, guardarDatosFiscales: true });
+    await pedidosApi.aplicarCodigo("karso10");
+    expect(fetchMock.mock.calls[0][1].body).toBe('{"requiereFactura":true,"guardarDatosFiscales":true}');
+    expect(fetchMock.mock.calls[1][1].body).toBe('{"codigo":"karso10"}');
   });
 
   it("los ids van codificados en la URL", async () => {

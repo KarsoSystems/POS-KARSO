@@ -1,12 +1,13 @@
 import type { Archivo } from "@/server/domain/archivo";
 import type { Pedido } from "@/server/domain/pedido";
-import type { ImmutableUserField, NewUser, User } from "@/server/domain/user";
+import type { ImmutableUserField, NewUser, User, UsoPromocion } from "@/server/domain/user";
 import type { WhatsappVerification } from "@/server/domain/verification";
 
 // Contratos de persistencia. El demo usa JSON; después se agrega una
 // implementación Mongo sin tocar los route handlers.
 
-export type UserPatch = Partial<Omit<User, ImmutableUserField>>;
+// Los usos de promociones se cambian solo con sus métodos, no con `update`.
+export type UserPatch = Partial<Omit<User, ImmutableUserField | "usosPromociones">>;
 
 export interface UserRepository {
   findById(id: string): Promise<User | null>;
@@ -15,6 +16,15 @@ export interface UserRepository {
   create(input: NewUser): Promise<User>;
   /** Lanza UsuarioNoEncontradoError o CorreoDuplicadoError. */
   update(id: string, patch: UserPatch): Promise<User>;
+  /**
+   * Usos de una promoción en pedidos no cancelados: de todos los clientes y de este.
+   * Provisional (SPEC 06): el backend lo llevará en su propia colección.
+   */
+  contarUsosPromocion(promocionId: string, userId: string): Promise<{ totales: number; delCliente: number }>;
+  /** Al hacer el pedido. Lanza UsuarioNoEncontradoError. */
+  registrarUsosPromociones(userId: string, usos: UsoPromocion[]): Promise<void>;
+  /** Al cancelar el pedido: sus códigos se pueden volver a usar. Lanza UsuarioNoEncontradoError. */
+  liberarUsosPromociones(userId: string, pedidoId: string): Promise<void>;
 }
 
 export interface VerificationRepository {

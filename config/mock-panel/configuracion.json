@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "ejemplo": true,
+  "configuracion": {
+    "zonaHoraria": "America/Monterrey",
+    "iva": { "tasa": 0.16 },
+    "promociones": {
+      "maxCodigosPorPedido": 2,
+      "modoCombinacion": "suma",
+      "descuentoMaximoPorcentaje": 30
+    }
+  }
+}

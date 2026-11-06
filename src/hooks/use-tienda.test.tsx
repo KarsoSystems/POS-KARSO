@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/api-client";
 import { queryKeys } from "./query-keys";
 import { useBanners } from "./use-banners";
 import { useProductos } from "./use-productos";
+import { useSucursales } from "./use-sucursales";
 
 const fetchMock = vi.fn();
 
@@ -61,5 +62,17 @@ describe("useBanners", () => {
 
     await waitFor(() => expect(result.current.data).toEqual(banners));
     expect(fetchMock.mock.calls[0][0]).toBe("/api/tienda/banners");
+  });
+});
+
+describe("useSucursales", () => {
+  it("pide /api/tienda/sucursales y guarda { ejemplo, sucursales } en su llave", async () => {
+    const datos = { ejemplo: true, sucursales: [{ _id: "s1", nombre: "KARSO Centro" }] };
+    fetchMock.mockResolvedValue(jsonResponse(200, datos));
+    const { result } = renderHook(() => useSucursales(), { wrapper });
+
+    await waitFor(() => expect(result.current.data).toEqual(datos));
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/tienda/sucursales");
+    expect(queryClient.getQueryData(queryKeys.sucursales)).toEqual(datos);
   });
 });

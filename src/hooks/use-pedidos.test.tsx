@@ -7,7 +7,14 @@ import { crearQueryClient } from "@/app/providers";
 import { ApiError } from "@/lib/api-client";
 import type { PedidoResponse } from "@/lib/pedidos-api";
 import { queryKeys } from "./query-keys";
-import { useAgregarItem, useConfirmarPedido, usePedidos } from "./use-pedidos";
+import {
+  useAgregarItem,
+  useAplicarCodigo,
+  useCambiarCheckout,
+  useConfirmarPedido,
+  usePedidos,
+  useQuitarCodigo,
+} from "./use-pedidos";
 
 const fetchMock = vi.fn();
 
@@ -97,5 +104,40 @@ describe("useConfirmarPedido", () => {
       "/api/pedidos/borrador/confirmar",
       "/api/pedidos",
     ]);
+  });
+});
+
+describe("checkout del borrador (SPEC 06)", () => {
+  it.each([
+    ["useCambiarCheckout", () => useCambiarCheckout(), { sucursalEntregaId: "s1" }, "/api/pedidos/borrador", "PATCH"],
+    ["useAplicarCodigo", () => useAplicarCodigo(), "KARSO10", "/api/pedidos/borrador/promociones", "POST"],
+    ["useQuitarCodigo", () => useQuitarCodigo(), "KARSO10", "/api/pedidos/borrador/promociones/KARSO10", "DELETE"],
+  ] as const)("%s escribe el borrador de la respuesta en la caché sin otra petición", async (_, hook, variables, ruta, method) => {
+    const nuevo = respuesta("b1");
+    fetchMock.mockResolvedValue(jsonResponse(200, nuevo));
+    // Cada hook tiene sus propias variables: en la tabla se tratan igual.
+    const { result } = renderHook(hook as () => { mutateAsync: (v: unknown) => Promise<unknown> }, { wrapper });
+
+    await act(() => result.current.mutateAsync(variables));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(ruta);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method });
+    expect(queryClient.getQueryData(queryKeys.borrador)).toEqual(nuevo);
+  });
+
+  it("un código inválido llega como ApiError con el mensaje del campo y no toca la caché", async () => {
+    queryClient.setQueryData(queryKeys.borrador, respuesta("b1"));
+    fetchMock.mockResolvedValue(
+      jsonResponse(422, {
+        error: { code: "VALIDACION", message: "Este código venció", fields: { codigo: "Este código venció" } },
+      }),
+    );
+    const { result } = renderHook(() => useAplicarCodigo(), { wrapper });
+
+    await act(() => result.current.mutateAsync("VERANO15").catch(() => {}));
+    await waitFor(() => expect(result.current.error).toBeInstanceOf(ApiError));
+    expect((result.current.error as ApiError).fields).toEqual({ codigo: "Este código venció" });
+    expect(queryClient.getQueryData(queryKeys.borrador)).toEqual(respuesta("b1"));
   });
 });

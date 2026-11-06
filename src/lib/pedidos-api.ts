@@ -6,11 +6,12 @@ import {
   TAMANO_MAXIMO_ARCHIVO_BYTES,
   type LineaInput,
 } from "@/lib/validation/pedidos";
+import type { CheckoutInput } from "@/lib/validation/checkout";
 // Solo tipos: se borran al compilar, no arrastran código del servidor al front.
 import type { PublicArchivo } from "@/server/domain/archivo";
-import type { EstadoPedido, LineaPedido, Pedido } from "@/server/domain/pedido";
+import type { EstadoPedido, LineaPedido, Pedido, PromocionAplicada, SucursalEntrega } from "@/server/domain/pedido";
 
-export type { EstadoPedido, LineaPedido, Pedido, PublicArchivo };
+export type { CheckoutInput, EstadoPedido, LineaPedido, Pedido, PromocionAplicada, PublicArchivo, SucursalEntrega };
 
 /** Pedido con los datos públicos de los archivos de sus líneas, por id. */
 export interface PedidoResponse {
@@ -131,6 +132,18 @@ export const pedidosApi = {
 
   quitarItem: (lineaId: string) =>
     apiFetch<PedidoResponse>(`/api/pedidos/borrador/items/${encodeURIComponent(lineaId)}`, {
+      method: "DELETE",
+    }),
+
+  /** Sucursal de entrega, "Requiero factura" y datos fiscales del borrador (cambios parciales). */
+  cambiarCheckout: (input: CheckoutInput) =>
+    apiFetch<PedidoResponse>("/api/pedidos/borrador", { method: "PATCH", body: input }),
+
+  aplicarCodigo: (codigo: string) =>
+    apiFetch<PedidoResponse>("/api/pedidos/borrador/promociones", { method: "POST", body: { codigo } }),
+
+  quitarCodigo: (codigo: string) =>
+    apiFetch<PedidoResponse>(`/api/pedidos/borrador/promociones/${encodeURIComponent(codigo)}`, {
       method: "DELETE",
     }),
 

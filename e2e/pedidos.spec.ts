@@ -10,6 +10,7 @@ import {
   llenarTarjeta,
   lona,
   opcion,
+  confirmarPorApi,
   restaurarMock,
   subirEnEditor,
   subirPorApi,
@@ -305,7 +306,7 @@ test.describe("Borrador", () => {
 
     await page.goto("/panel/pedidos/nuevo");
     await expect(page.getByText("Tu pedido está vacío")).toBeVisible();
-    expect(await leerOrders()).toMatchObject({ version: 3 });
+    expect(await leerOrders()).toMatchObject({ version: 4 });
     // Deja el contador como estaba para que los folios de otros tests sigan la secuencia.
     const actual = await leerOrders();
     await escribirOrders({ ...actual, ultimoFolio });
@@ -322,6 +323,8 @@ test.describe("Hacer pedido, detalle y cancelar", () => {
     const esperado = folio((await leerOrders()).ultimoFolio + 1);
 
     await page.goto("/panel/pedidos/nuevo");
+    await expect(page.getByRole("button", { name: "Hacer pedido" })).toBeDisabled();
+    await opcion(page, /KARSO Centro/).click();
     await page.getByRole("button", { name: "Hacer pedido" }).click();
     await expect(page).toHaveURL(/\/panel\/pedidos\/[\w-]+\?confirmado=1$/);
     await expect(page.getByText(`Pedido ${esperado} recibido`)).toBeVisible();
@@ -343,7 +346,7 @@ test.describe("Hacer pedido, detalle y cancelar", () => {
   test("cambiar un precio en el mock no altera un pedido confirmado y sí recalcula el borrador", async ({ page }) => {
     await crearCuentaActiva(page.request);
     await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "tarjeta-cmyk.jpg")));
-    const { pedido } = await (await page.request.post("/api/pedidos/borrador/confirmar")).json();
+    const pedido = await confirmarPorApi(page.request);
     // Al confirmar, el archivo temporal pasa al pedido: el borrador nuevo sube otro.
     await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "tarjeta-cmyk.jpg")));
 
@@ -362,7 +365,7 @@ test.describe("Hacer pedido, detalle y cancelar", () => {
     const pedidos: { id: string; folio: string }[] = [];
     for (let i = 0; i < 2; i++) {
       await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "tarjeta-cmyk.jpg")));
-      pedidos.push((await (await page.request.post("/api/pedidos/borrador/confirmar")).json()).pedido);
+      pedidos.push(await confirmarPorApi(page.request));
     }
 
     await page.goto(`/panel/pedidos/${pedidos[0].id}`);
@@ -389,7 +392,7 @@ test.describe("375 px", () => {
     await crearCuentaActiva(page.request);
     const tarjetaId = await subirPorApi(page.request, "tarjeta-cmyk.jpg");
     await agregarPorApi(page.request, tarjeta(tarjetaId, { descripcion: "Texto largo ".repeat(30) }));
-    const { pedido } = await (await page.request.post("/api/pedidos/borrador/confirmar")).json();
+    const pedido = await confirmarPorApi(page.request);
     await agregarPorApi(page.request, lona(await subirPorApi(page.request, "tarjeta-cmyk.jpg")));
 
     for (const [url, texto] of [

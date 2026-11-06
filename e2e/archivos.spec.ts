@@ -13,6 +13,7 @@ import {
   leerOrders,
   lona,
   opcion,
+  confirmarPorApi,
   restaurarMock,
   subirEnEditor,
   subirPorApi,
@@ -395,6 +396,7 @@ test.describe("Hacer pedido con advertencias", () => {
 
     const { ultimoFolio } = await leerOrders();
     const folio = `P-${String(ultimoFolio + 1).padStart(6, "0")}`;
+    await opcion(page, /KARSO Centro/).click();
     await expect(page.getByRole("button", { name: "Hacer pedido" })).toBeEnabled();
     await page.getByRole("button", { name: "Hacer pedido" }).click();
     await expect(page.getByText(`Pedido ${folio} recibido`)).toBeVisible();
@@ -429,7 +431,7 @@ test.describe("Datos de versiones anteriores", () => {
 
     await page.goto("/panel/pedidos/nuevo");
     await expect(page.getByText("Tu pedido está vacío")).toBeVisible();
-    expect(await leerOrders()).toMatchObject({ version: 3 });
+    expect(await leerOrders()).toMatchObject({ version: 4 });
     expect((await page.request.get("/api/archivos/viejo")).status()).toBe(404);
     // Deja el contador como estaba para que los folios de otros tests sigan la secuencia.
     const actual = await leerOrders();
@@ -460,7 +462,7 @@ test.describe("375 px", () => {
     await expect(page.getByText("Podría ser rechazado", { exact: true }).first()).toBeVisible();
     await sinScrollHorizontal(page);
 
-    const { pedido } = await (await page.request.post("/api/pedidos/borrador/confirmar")).json();
+    const pedido = await confirmarPorApi(page.request);
     await page.goto(`/panel/pedidos/${pedido.id}`);
     await expect(page.getByText("Pago pendiente")).toBeVisible();
     await sinScrollHorizontal(page);

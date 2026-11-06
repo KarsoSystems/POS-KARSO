@@ -14,6 +14,7 @@ const HOOKS_DE_DATOS = [
   "use-auth",
   "use-productos",
   "use-banners",
+  "use-sucursales",
   "use-pedidos",
   "use-subir-archivo",
   "use-editor-item",

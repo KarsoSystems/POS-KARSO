@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LineaInput } from "@/lib/validation/pedidos";
-import { pedidosApi, type PedidoResponse } from "@/lib/pedidos-api";
+import { pedidosApi, type CheckoutInput, type PedidoResponse } from "@/lib/pedidos-api";
 import { queryKeys } from "./query-keys";
 
 /** Borrador del usuario (el servidor lo crea si no hay), con los archivos de sus líneas. */
@@ -44,6 +44,19 @@ export function useEditarItem() {
 
 export function useQuitarItem() {
   return useMutacionBorrador((lineaId: string) => pedidosApi.quitarItem(lineaId));
+}
+
+/** Sucursal, factura y datos fiscales del borrador (SPEC 06). */
+export function useCambiarCheckout() {
+  return useMutacionBorrador((input: CheckoutInput) => pedidosApi.cambiarCheckout(input));
+}
+
+export function useAplicarCodigo() {
+  return useMutacionBorrador((codigo: string) => pedidosApi.aplicarCodigo(codigo));
+}
+
+export function useQuitarCodigo() {
+  return useMutacionBorrador((codigo: string) => pedidosApi.quitarCodigo(codigo));
 }
 
 export function useConfirmarPedido() {

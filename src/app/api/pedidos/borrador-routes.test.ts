@@ -192,7 +192,7 @@ describe("GET /api/pedidos/borrador", () => {
     errorSpy.mockRestore();
   });
 
-  it("un orders.json de la SPEC 02 (versión 1) se descarta sin romper y se reinicia en la versión 3", async () => {
+  it("un orders.json de la SPEC 02 (versión 1) se descarta sin romper y se reinicia en la versión 4", async () => {
     await iniciarSesionActiva();
     const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
     await mkdir(env.dataDir, { recursive: true });
@@ -203,7 +203,7 @@ describe("GET /api/pedidos/borrador", () => {
     const res = await getBorrador();
     expect(res.status).toBe(200);
     expect((await res.json()).pedido.productos).toEqual([]);
-    expect(await readJson("orders.json")).toMatchObject({ version: 3, ultimoFolio: 0 });
+    expect(await readJson("orders.json")).toMatchObject({ version: 4, ultimoFolio: 0 });
     aviso.mockRestore();
   });
 });

@@ -1,3 +1,7 @@
+import type { DatosFiscales } from "@/lib/validation/fiscal";
+
+export type { DatosFiscales };
+
 export type AuthProvider = "password" | "google";
 
 export type EstadoCuenta =
@@ -18,22 +22,32 @@ export interface User {
   whatsappVerificado: boolean;
   correoVerificado: boolean; // true si entró con Google; false en registro por correo
   estado: EstadoCuenta;
+  datosFiscales: DatosFiscales | null; // se precargan en el borrador al pedir factura (SPEC 06)
+  usosPromociones: UsoPromocion[]; // provisional, mientras el backend define su colección (SPEC 06)
   createdAt: string; // ISO 8601
   updatedAt: string;
 }
 
-/** Datos para crear un usuario; el repositorio asigna id, idCliente y fechas. */
-export type NewUser = Omit<User, "id" | "idCliente" | "createdAt" | "updatedAt">;
+/** Un código de promoción usado en un pedido hecho; se quita al cancelar ese pedido. */
+export interface UsoPromocion {
+  promocionId: string;
+  codigo: string;
+  pedidoId: string;
+  fecha: string; // al hacer el pedido
+}
+
+/** Datos para crear un usuario; el repositorio asigna id, idCliente, fechas, datos fiscales y usos. */
+export type NewUser = Omit<User, "id" | "idCliente" | "createdAt" | "updatedAt" | "datosFiscales" | "usosPromociones">;
 
 /** Campos que no se pueden cambiar después de crear el usuario. */
 export type ImmutableUserField = "id" | "idCliente" | "createdAt";
 
-/** Usuario expuesto al front (GET /api/auth/me). */
-export type PublicUser = Omit<User, "passwordHash">;
+/** Usuario expuesto al front (GET /api/auth/me). Los usos de promociones solo los lee el servidor. */
+export type PublicUser = Omit<User, "passwordHash" | "usosPromociones">;
 
 export function toPublicUser(user: User): PublicUser {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { passwordHash, ...publicUser } = user;
+  const { passwordHash, usosPromociones, ...publicUser } = user;
   return publicUser;
 }
 

@@ -43,19 +43,21 @@ async function withLock<R>(key: string, task: () => Promise<R>): Promise<R> {
   }
 }
 
-export interface JsonStoreOptions {
+export interface JsonStoreOptions<T> {
   /**
    * Si el archivo trae otra versión: `"error"` (por defecto) lanza; `"descartar"`
-   * lo reemplaza por el valor inicial y deja un aviso en el log (datos de demo).
+   * lo reemplaza por el valor inicial y deja un aviso en el log (datos de demo);
+   * `{ migrar }` lo convierte a la versión actual y lo guarda (datos que no se
+   * pueden perder, como los usuarios). `migrar` lanza si no sabe migrar esa versión.
    */
-  versionDistinta?: "error" | "descartar";
+  versionDistinta?: "error" | "descartar" | { migrar: (data: VersionedFile & Record<string, unknown>) => T };
 }
 
 export function createJsonStore<T extends VersionedFile>(
   fileName: string,
   initial: T,
   dataDir: string = resolveDataDir(),
-  { versionDistinta = "error" }: JsonStoreOptions = {},
+  { versionDistinta = "error" }: JsonStoreOptions<T> = {},
 ): JsonStore<T> {
   const filePath = path.resolve(dataDir, fileName);
 
@@ -87,6 +89,13 @@ export function createJsonStore<T extends VersionedFile>(
     }
     const data = JSON.parse(raw) as T;
     if (data.version !== initial.version) {
+      if (typeof versionDistinta === "object") {
+        const migrado = versionDistinta.migrar(data as T & Record<string, unknown>);
+        if (migrado.version !== initial.version) throw new Error(`${fileName}: la migración no llegó a la versión ${initial.version}`);
+        console.warn(`[json-store] ${fileName}: versión ${data.version} migrada a la versión ${initial.version}`);
+        await writeAtomic(migrado);
+        return migrado;
+      }
       if (versionDistinta === "descartar") {
         console.warn(`[json-store] ${fileName}: versión ${data.version} descartada; se reinicia en la versión ${initial.version}`);
         return fresh();

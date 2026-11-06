@@ -28,13 +28,13 @@ describe("formatFolio", () => {
 });
 
 describe("orders.json de versiones anteriores", () => {
-  it.each([1, 2])("un archivo de versión %i se descarta y se reinicia vacío en la versión 3", async (version) => {
+  it.each([1, 2, 3])("un archivo de versión %i se descarta y se reinicia vacío en la versión 4", async (version) => {
     const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
     const v1 = { version, ultimoFolio: 3, pedidos: [{ id: "viejo", userId: "u1", estado: "borrador", items: [] }] };
     await writeFile(path.join(dir, "orders.json"), JSON.stringify(v1));
 
     expect(await repo.findBorrador("u1")).toBeNull();
-    expect(await readOrders()).toEqual({ version: 3, ultimoFolio: 0, pedidos: [] });
+    expect(await readOrders()).toEqual({ version: 4, ultimoFolio: 0, pedidos: [] });
     expect(aviso).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`orders\\.json: versión ${version} descartada`)));
     aviso.mockRestore();
   });
@@ -59,7 +59,7 @@ describe("borrador", () => {
       canceladoAt: null,
     });
     expect(await repo.findBorrador("u1")).toEqual(pedido);
-    expect(await readOrders()).toEqual({ version: 3, ultimoFolio: 0, pedidos: [pedido] });
+    expect(await readOrders()).toEqual({ version: 4, ultimoFolio: 0, pedidos: [pedido] });
   });
 
   it("findBorrador devuelve null si el usuario no tiene", async () => {

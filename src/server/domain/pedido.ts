@@ -1,6 +1,8 @@
 import type { Totales } from "@/lib/pedidos/cotizacion";
 import type { EstadoPedido } from "@/lib/pedidos/formato";
 import type { LineaConArchivos } from "@/lib/pedidos/linea";
+import type { Direccion } from "@/lib/sucursales/schema";
+import type { DatosFiscales } from "@/lib/validation/fiscal";
 
 // EstadoPedido, Totales y LineaCotizada viven en src/lib porque el front los usa
 // (cotización en vivo, etiquetas); se re-exportan aquí como dominio.
@@ -19,6 +21,22 @@ export interface LineaPedido extends LineaConArchivos {
   problema: string | null; // propio del demo, p. ej. "Couché 8.7 x 5 cm ya no está disponible"
 }
 
+/** Copia de la sucursal al elegirla: el pedido conserva lo que vio el cliente aunque el panel la cambie. */
+export interface SucursalEntrega {
+  nombre: string;
+  direccion: Direccion;
+  telefono: string;
+  horario: string;
+}
+
+/** Un código aplicado al pedido (KARSO 6.5), con lo que descontó. */
+export interface PromocionAplicada {
+  promocionId: string;
+  codigo: string;
+  porcentaje: number;
+  descuento: number; // en pesos
+}
+
 /** Pedido con los totales de KARSO 5.4 (subtotal, descuento, baseIva, tasaIva, iva, total), en pesos. */
 export interface Pedido extends Totales {
   id: string; // UUID
@@ -26,6 +44,12 @@ export interface Pedido extends Totales {
   userId: string;
   estado: EstadoPedido;
   productos: LineaPedido[]; // máx. 20
+  sucursalEntregaId: string | null; // obligatoria para hacer el pedido (SPEC 06)
+  sucursalEntrega: SucursalEntrega | null; // propio del demo
+  promociones: PromocionAplicada[];
+  requiereFactura: boolean; // con factura, tasaIva = iva.tasa de la configuración
+  datosFiscales: DatosFiscales | null; // en el borrador se conservan aunque se quite la factura; al confirmar sin factura, null
+  avisos: string[]; // solo en el borrador: "El código VERANO15 ya no es válido: venció"
   pago: { estado: "pendiente" };
   createdAt: string; // ISO 8601
   updatedAt: string;

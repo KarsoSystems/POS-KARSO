@@ -103,6 +103,36 @@ describe("createJsonStore", () => {
     expect(aviso).toHaveBeenCalledWith(expect.stringMatching(/counter\.json: versión 2 descartada/));
     aviso.mockRestore();
   });
+
+  it("con versionDistinta { migrar } convierte el archivo, lo guarda y avisa", async () => {
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await writeFile(path.join(dir, "counter.json"), JSON.stringify({ version: 0, total: 7 }));
+    const store = createJsonStore("counter.json", initial, dir, {
+      versionDistinta: { migrar: (viejo) => ({ version: 1, count: viejo.total as number }) },
+    });
+    expect(await store.update((data) => ++data.count)).toBe(8);
+    expect(await readJson("counter.json")).toEqual({ version: 1, count: 8 });
+    expect(aviso).toHaveBeenCalledWith(expect.stringMatching(/counter\.json: versión 0 migrada a la versión 1/));
+    aviso.mockRestore();
+  });
+
+  it("una migración que no llega a la versión actual o que lanza no toca el archivo", async () => {
+    const original = JSON.stringify({ version: 0, total: 7 });
+    await writeFile(path.join(dir, "counter.json"), original);
+    const corta = createJsonStore("counter.json", initial, dir, {
+      versionDistinta: { migrar: () => ({ version: 0, count: 0 }) as unknown as CounterFile },
+    });
+    await expect(corta.read()).rejects.toThrow("counter.json: la migración no llegó a la versión 1");
+    const falla = createJsonStore("counter.json", initial, dir, {
+      versionDistinta: {
+        migrar: () => {
+          throw new Error("versión 0 no soportada");
+        },
+      },
+    });
+    await expect(falla.read()).rejects.toThrow("versión 0 no soportada");
+    expect(await readFile(path.join(dir, "counter.json"), "utf8")).toBe(original);
+  });
 });
 
 describe("resolveDataDir", () => {

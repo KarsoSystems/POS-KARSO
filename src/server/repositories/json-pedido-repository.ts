@@ -11,10 +11,11 @@ import {
 
 // El contador de folios vive en el mismo archivo que los pedidos: así el folio
 // se asigna bajo el mismo lock que la confirmación y no se gastan en borradores.
-// Versión 3 = líneas de KARSO (SPEC 04) con frente y reverso (SPEC 05); un archivo
-// de una versión anterior se descarta: eran datos de prueba del demo.
+// Versión 4 = líneas de KARSO (SPEC 04) con frente y reverso (SPEC 05), sucursal,
+// factura y promociones (SPEC 06); un archivo de una versión anterior se descarta:
+// eran datos de prueba del demo.
 interface OrdersFile {
-  version: 3;
+  version: 4;
   ultimoFolio: number;
   pedidos: Pedido[];
 }
@@ -29,7 +30,7 @@ async function aplicar(pedido: Pedido, cambiar: CambiarPedido): Promise<void> {
 export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): PedidoRepository {
   const store = createJsonStore<OrdersFile>(
     "orders.json",
-    { version: 3, ultimoFolio: 0, pedidos: [] },
+    { version: 4, ultimoFolio: 0, pedidos: [] },
     dataDir,
     { versionDistinta: "descartar" },
   );
@@ -58,6 +59,12 @@ export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): 
           userId,
           estado: "borrador",
           productos: [],
+          sucursalEntregaId: null,
+          sucursalEntrega: null,
+          promociones: [],
+          requiereFactura: false,
+          datosFiscales: null,
+          avisos: [],
           ...calcularTotales([]),
           pago: { estado: "pendiente" },
           createdAt: now,

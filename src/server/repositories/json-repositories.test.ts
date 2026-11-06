@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatIdCliente, toPublicUser, type NewUser } from "@/server/domain/user";
 import type { WhatsappVerification } from "@/server/domain/verification";
 import { createJsonUserRepository } from "./json-user-repository";
@@ -41,10 +41,12 @@ describe("formatIdCliente", () => {
 });
 
 describe("toPublicUser", () => {
-  it("quita passwordHash", async () => {
+  it("quita passwordHash y los usos de promociones; deja los datos fiscales", async () => {
     const repo = createJsonUserRepository(dir);
     const user = await repo.create(nuevoUsuario("ana@ejemplo.com"));
     expect(toPublicUser(user)).not.toHaveProperty("passwordHash");
+    expect(toPublicUser(user)).not.toHaveProperty("usosPromociones");
+    expect(toPublicUser(user)).toHaveProperty("datosFiscales", null);
   });
 });
 
@@ -66,10 +68,43 @@ describe("JsonUserRepository", () => {
     expect(user.updatedAt).toBe(user.createdAt);
   });
 
-  it("persiste en users.json con versión 1", async () => {
+  it("persiste en users.json con versión 2, sin datos fiscales ni usos de promociones", async () => {
     const repo = createJsonUserRepository(dir);
     const user = await repo.create(nuevoUsuario("a@ejemplo.com"));
-    expect(await readJson("users.json")).toEqual({ version: 1, users: [user] });
+    expect(user).toMatchObject({ datosFiscales: null, usosPromociones: [] });
+    expect(await readJson("users.json")).toEqual({ version: 2, users: [user] });
+  });
+
+  it("migra un users.json de la versión 1 sin perder usuarios", async () => {
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const anterior = createJsonUserRepository(dir);
+    const user = await anterior.create(nuevoUsuario("ana@ejemplo.com"));
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { datosFiscales, usosPromociones, ...v1 } = user;
+    await writeFile(path.join(dir, "users.json"), JSON.stringify({ version: 1, users: [v1] }));
+
+    const repo = createJsonUserRepository(dir);
+    expect(await repo.findByCorreo("ana@ejemplo.com")).toEqual(user);
+    expect(await readJson("users.json")).toEqual({ version: 2, users: [user] });
+    expect(aviso).toHaveBeenCalledWith(expect.stringMatching(/users\.json: versión 1 migrada a la versión 2/));
+    aviso.mockRestore();
+  });
+
+  it("usos de promociones: se registran, se cuentan por cliente y en total, y se liberan por pedido", async () => {
+    const repo = createJsonUserRepository(dir);
+    const ana = await repo.create(nuevoUsuario("ana@ejemplo.com"));
+    const beto = await repo.create(nuevoUsuario("beto@ejemplo.com"));
+    const uso = (pedidoId: string, promocionId = "p1") => ({ promocionId, codigo: "KARSO10", pedidoId, fecha: "2026-11-06T18:00:00Z" });
+
+    await repo.registrarUsosPromociones(ana.id, [uso("pedido-1"), uso("pedido-1", "p2")]);
+    await repo.registrarUsosPromociones(beto.id, [uso("pedido-2")]);
+    expect(await repo.contarUsosPromocion("p1", ana.id)).toEqual({ totales: 2, delCliente: 1 });
+    expect(await repo.contarUsosPromocion("p2", beto.id)).toEqual({ totales: 1, delCliente: 0 });
+
+    await repo.liberarUsosPromociones(ana.id, "pedido-1");
+    expect(await repo.contarUsosPromocion("p1", ana.id)).toEqual({ totales: 1, delCliente: 0 });
+    expect((await repo.findById(ana.id))?.usosPromociones).toEqual([]);
+    await expect(repo.registrarUsosPromociones("nadie", [uso("x")])).rejects.toBeInstanceOf(UsuarioNoEncontradoError);
   });
 
   it("un correo duplicado falla aunque cambien las mayúsculas, sin consumir consecutivo", async () => {

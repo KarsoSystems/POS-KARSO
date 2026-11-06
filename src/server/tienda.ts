@@ -1,8 +1,17 @@
 import type { NextResponse } from "next/server";
 import type { Banner } from "@/lib/banners/schema";
 import type { Producto, ProductosArchivo } from "@/lib/catalogo/schema";
+import type { ConfiguracionTienda } from "@/lib/configuracion/schema";
+import type { Promocion } from "@/lib/promociones/schema";
+import type { Sucursal, SucursalesArchivo } from "@/lib/sucursales/schema";
 import { apiError } from "@/server/http/responses";
-import { cargarBanners, cargarProductos } from "@/server/mock-panel";
+import {
+  cargarBanners,
+  cargarConfiguracion,
+  cargarProductos,
+  cargarPromociones,
+  cargarSucursales,
+} from "@/server/mock-panel";
 
 // Lo que la tienda ve del catálogo del panel. Filtra el servidor, como lo harán
 // las rutas /tienda del backend real: el front no decide qué se vende en línea.
@@ -37,6 +46,11 @@ export function bannersVigentes(banners: Banner[], ahora: Date = new Date()): Ba
     .sort((a, b) => a.orden - b.orden);
 }
 
+/** Sucursales activas, por `clave`: donde el cliente puede recoger. */
+export function sucursalesActivas(sucursales: Sucursal[]): Sucursal[] {
+  return sucursales.filter((s) => s.activa).sort((a, b) => a.clave - b.clave);
+}
+
 type ParaRuta<T> = ({ response?: never } & T) | ({ response: NextResponse } & { [K in keyof T]?: never });
 
 /**
@@ -59,4 +73,64 @@ export async function bannersParaRuta(): Promise<ParaRuta<{ banners: Banner[] }>
     console.error("[mock-panel]", (error as Error).message);
     return { response: apiError(500, "BANNERS_INVALIDOS", "Los banners no están disponibles") };
   }
+}
+
+export async function sucursalesParaRuta(): Promise<ParaRuta<{ archivo: SucursalesArchivo }>> {
+  try {
+    return { archivo: await cargarSucursales() };
+  } catch (error) {
+    console.error("[mock-panel]", (error as Error).message);
+    return { response: apiError(500, "SUCURSALES_INVALIDAS", "Las sucursales no están disponibles") };
+  }
+}
+
+export async function promocionesParaRuta(): Promise<ParaRuta<{ promociones: Promocion[] }>> {
+  try {
+    return { promociones: (await cargarPromociones()).promociones };
+  } catch (error) {
+    console.error("[mock-panel]", (error as Error).message);
+    return { response: apiError(500, "PROMOCIONES_INVALIDAS", "Las promociones no están disponibles") };
+  }
+}
+
+export async function configuracionParaRuta(): Promise<ParaRuta<{ configuracion: ConfiguracionTienda }>> {
+  try {
+    return { configuracion: (await cargarConfiguracion()).configuracion };
+  } catch (error) {
+    console.error("[mock-panel]", (error as Error).message);
+    return { response: apiError(500, "CONFIGURACION_INVALIDA", "La configuración no está disponible") };
+  }
+}
+
+/**
+ * Lo que el servidor necesita del panel para recalcular un borrador: el catálogo
+ * completo (sin filtrar, para distinguir "ya no está disponible" de "solo en
+ * mostrador"), todas las sucursales, las promociones y la configuración.
+ */
+export interface ContextoTienda {
+  productos: Producto[];
+  sucursales: Sucursal[];
+  promociones: Promocion[];
+  configuracion: ConfiguracionTienda;
+}
+
+/** Los cuatro mocks del panel, o `{ response }` con el 500 del primero que no valide. */
+export async function contextoParaRuta(): Promise<ParaRuta<{ contexto: ContextoTienda }>> {
+  const [productos, sucursales, promociones, configuracion] = await Promise.all([
+    productosParaRuta(),
+    sucursalesParaRuta(),
+    promocionesParaRuta(),
+    configuracionParaRuta(),
+  ]);
+  for (const resultado of [productos, sucursales, promociones, configuracion]) {
+    if (resultado.response) return { response: resultado.response };
+  }
+  return {
+    contexto: {
+      productos: productos.archivo!.productos,
+      sucursales: sucursales.archivo!.sucursales,
+      promociones: promociones.promociones!,
+      configuracion: configuracion.configuracion!,
+    },
+  };
 }

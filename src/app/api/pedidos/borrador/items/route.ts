@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { lineaSchema, MAX_ITEMS_POR_PEDIDO } from "@/lib/validation/pedidos";
 import { requireSessionUser } from "@/server/auth/guards";
-import { productosParaRuta } from "@/server/tienda";
+import { contextoParaRuta } from "@/server/tienda";
 import { apiError, parseBody } from "@/server/http/responses";
 import {
   cambiarBorrador,
@@ -17,15 +17,14 @@ export async function POST(request: Request) {
   const body = await parseBody(request, lineaSchema);
   if (body.response) return body.response;
 
-  const { archivo: mock, response } = await productosParaRuta();
+  const { contexto, response } = await contextoParaRuta();
   if (response) return response;
-  const { productos } = mock;
 
-  const preparado = await prepararLinea(body.data, guard.user.id, productos);
+  const preparado = await prepararLinea(body.data, guard.user.id, contexto.productos);
   if (preparado.response) return preparado.response;
 
   try {
-    const pedido = await cambiarBorrador(guard.user.id, productos, (borrador) => {
+    const pedido = await cambiarBorrador(guard.user.id, contexto, (borrador) => {
       // Se revisa bajo el lock: dos pestañas no pueden pasar de 20 a la vez.
       if (borrador.productos.length >= MAX_ITEMS_POR_PEDIDO) throw new MaximoItemsError();
       borrador.productos.push({ lineaId: randomUUID(), ...preparado.linea });

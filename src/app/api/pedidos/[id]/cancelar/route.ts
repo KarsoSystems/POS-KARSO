@@ -1,9 +1,9 @@
 import { requireSessionUser } from "@/server/auth/guards";
 import { apiError } from "@/server/http/responses";
 import { respuestaPedido } from "@/server/pedidos/borrador";
-import { EstadoPedidoInvalidoError, pedidoRepository } from "@/server/repositories";
+import { EstadoPedidoInvalidoError, pedidoRepository, userRepository } from "@/server/repositories";
 
-/** El cliente solo puede cancelar mientras el pedido está en `pedido`. */
+/** El cliente solo puede cancelar mientras el pedido está en `pedido`. Sus códigos se liberan. */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const guard = await requireSessionUser("activo");
   if (guard.response) return guard.response;
@@ -21,6 +21,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       p.estado = "cancelado";
       p.canceladoAt = new Date().toISOString();
     });
+    await userRepository.liberarUsosPromociones(guard.user.id, pedido.id);
     return respuestaPedido(pedido);
   } catch (error) {
     if (error instanceof EstadoPedidoInvalidoError) {

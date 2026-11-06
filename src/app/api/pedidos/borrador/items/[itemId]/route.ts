@@ -1,7 +1,7 @@
 import { idsDeArchivos } from "@/lib/pedidos/archivo-linea";
 import { lineaSchema } from "@/lib/validation/pedidos";
 import { requireSessionUser } from "@/server/auth/guards";
-import { productosParaRuta } from "@/server/tienda";
+import { contextoParaRuta } from "@/server/tienda";
 import { apiError, parseBody } from "@/server/http/responses";
 import {
   cambiarBorrador,
@@ -23,16 +23,15 @@ export async function PUT(request: Request, { params }: Contexto) {
   const body = await parseBody(request, lineaSchema);
   if (body.response) return body.response;
 
-  const { archivo: mock, response } = await productosParaRuta();
+  const { contexto, response } = await contextoParaRuta();
   if (response) return response;
-  const { productos } = mock;
 
-  const preparado = await prepararLinea(body.data, guard.user.id, productos);
+  const preparado = await prepararLinea(body.data, guard.user.id, contexto.productos);
   if (preparado.response) return preparado.response;
 
   let anteriores: string[] = [];
   try {
-    const pedido = await cambiarBorrador(guard.user.id, productos, (borrador) => {
+    const pedido = await cambiarBorrador(guard.user.id, contexto, (borrador) => {
       const index = borrador.productos.findIndex((linea) => linea.lineaId === itemId);
       if (index === -1) throw new ItemNoEncontradoError(itemId);
       anteriores = idsDeArchivos(borrador.productos[index].archivos);
@@ -53,13 +52,12 @@ export async function DELETE(_request: Request, { params }: Contexto) {
   if (guard.response) return guard.response;
 
   const { itemId } = await params;
-  const { archivo: mock, response } = await productosParaRuta();
+  const { contexto, response } = await contextoParaRuta();
   if (response) return response;
-  const { productos } = mock;
 
   let ids: string[] = [];
   try {
-    const pedido = await cambiarBorrador(guard.user.id, productos, (borrador) => {
+    const pedido = await cambiarBorrador(guard.user.id, contexto, (borrador) => {
       const linea = borrador.productos.find((l) => l.lineaId === itemId);
       if (!linea) throw new ItemNoEncontradoError(itemId);
       ids = idsDeArchivos(linea.archivos);

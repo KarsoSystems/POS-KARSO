@@ -23,9 +23,9 @@ import type { ProductosArchivo } from "@/lib/catalogo/schema";
 import { PRODUCTOS_PATH } from "@/server/mock-panel";
 import { POST as cancelar } from "./[id]/cancelar/route";
 import { GET as detalle } from "./[id]/route";
-import { POST as confirmar } from "./borrador/confirmar/route";
+import { POST as confirmarRuta } from "./borrador/confirmar/route";
 import { POST as agregar } from "./borrador/items/route";
-import { GET as getBorrador } from "./borrador/route";
+import { GET as getBorrador, PATCH as cambiarCheckout } from "./borrador/route";
 import { GET as listar } from "./route";
 import { jar } from "@/test/next-headers-mock";
 import { GET as descargarArchivo } from "@/app/api/archivos/[id]/route";
@@ -42,6 +42,18 @@ async function editarTarjetaCouche(cambiar: (variante: ProductosArchivo["product
   const archivo: ProductosArchivo = JSON.parse(await readFile(env.productosPath, "utf8"));
   cambiar(archivo.productos.find((p) => p._id === TARJETA)!.variantes.find((v) => v.varianteId === TARJETA_COUCHE)!);
   await writeFile(env.productosPath, JSON.stringify(archivo));
+}
+
+/** "Hacer pedido" con la sucursal de entrega ya elegida (obligatoria desde la SPEC 06). */
+async function confirmar() {
+  await cambiarCheckout(
+    new Request("http://localhost/api/pedidos/borrador", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sucursalEntregaId: "6720a1f0c1a2b3c4d5e60100" }),
+    }),
+  );
+  return confirmarRuta();
 }
 
 const ordersPath = () => path.join(env.dataDir, "orders.json");
