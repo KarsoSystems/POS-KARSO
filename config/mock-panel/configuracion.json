@@ -2,12 +2,15 @@
   "version": 1,
   "ejemplo": true,
   "configuracion": {
-    "zonaHoraria": "America/Monterrey",
+    "zonaHoraria": "America/Mexico_City",
     "iva": { "tasa": 0.16 },
     "promociones": {
       "maxCodigosPorPedido": 2,
       "modoCombinacion": "suma",
       "descuentoMaximoPorcentaje": 30
+    },
+    "pedidos": {
+      "horasExpiracionPagoPendiente": 24
     }
   }
 }

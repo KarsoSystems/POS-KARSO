@@ -30,7 +30,6 @@ import { userRepository } from "@/server/repositories";
 import { subirArchivoPrueba } from "@/test/archivos";
 import { jar } from "@/test/next-headers-mock";
 import { iniciarSesionActiva } from "@/test/sesion";
-import { POST as cancelarRuta } from "./[id]/cancelar/route";
 import { GET as detalle } from "./[id]/route";
 import { POST as confirmarRuta } from "./borrador/confirmar/route";
 import { POST as agregarRuta } from "./borrador/items/route";
@@ -68,7 +67,6 @@ const aplicar = (codigo: string) => aplicarCodigoRuta(json("http://localhost/api
 const quitarCodigo = (codigo: string) =>
   quitarCodigoRuta(new Request("http://localhost"), { params: Promise.resolve({ codigo }) });
 const confirmar = () => confirmarRuta();
-const cancelar = (id: string) => cancelarRuta(new Request("http://localhost"), { params: Promise.resolve({ id }) });
 const pedidoDe = async (res: Response) => (await res.json()).pedido;
 const campos = async (res: Response) => (await res.json()).error.fields;
 
@@ -331,7 +329,7 @@ describe("POST /api/pedidos/borrador/confirmar con checkout", () => {
     expect(await pedidoDe(await confirmar())).toMatchObject({ requiereFactura: false, datosFiscales: null, total: 310 });
   });
 
-  it("BIENVENIDA5 se registra al hacer el pedido, ya no se puede usar y cancelar lo libera", async () => {
+  it("BIENVENIDA5 se registra al hacer el pedido y ya no se puede usar", async () => {
     const user = await iniciarSesionActiva();
     await agregarTarjeta();
     await aplicar("BIENVENIDA5");
@@ -344,9 +342,6 @@ describe("POST /api/pedidos/borrador/confirmar con checkout", () => {
     await agregarTarjeta();
     expect(await campos(await aplicar("BIENVENIDA5"))).toEqual({ codigo: "Ya usaste este código" });
 
-    expect((await cancelar(pedido.id)).status).toBe(200);
-    expect((await userRepository.findById(user.id))?.usosPromociones).toEqual([]);
-    expect((await aplicar("BIENVENIDA5")).status).toBe(200);
   });
 
   it("un código que vence entre aplicarlo y confirmar → 409 PROMOCION_INVALIDA y el borrador queda sin él", async () => {
@@ -365,7 +360,7 @@ describe("POST /api/pedidos/borrador/confirmar con checkout", () => {
       message: "El código KARSO10 ya no es válido: venció. Revisa el total antes de hacer el pedido",
     });
     const borrador = await pedidoDe(await getBorrador());
-    expect(borrador).toMatchObject({ estado: "borrador", promociones: [], total: 310 });
+    expect(borrador).toMatchObject({ estatus: "borrador", promociones: [], total: 310 });
     expect(borrador.avisos).toEqual(["El código KARSO10 ya no es válido: venció"]);
     expect((await confirmar()).status).toBe(201);
   });

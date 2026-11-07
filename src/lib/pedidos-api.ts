@@ -6,12 +6,33 @@ import {
   TAMANO_MAXIMO_ARCHIVO_BYTES,
   type LineaInput,
 } from "@/lib/validation/pedidos";
-import type { CheckoutInput } from "@/lib/validation/checkout";
+import type { CheckoutInput, ResultadoPago } from "@/lib/validation/checkout";
 // Solo tipos: se borran al compilar, no arrastran código del servidor al front.
 import type { PublicArchivo } from "@/server/domain/archivo";
-import type { EstadoPedido, LineaPedido, Pedido, PromocionAplicada, SucursalEntrega } from "@/server/domain/pedido";
+import type {
+  CambioEstatus,
+  Cancelacion,
+  EstatusPedido,
+  LineaPedido,
+  Pago,
+  Pedido,
+  PromocionAplicada,
+  SucursalEntrega,
+} from "@/server/domain/pedido";
 
-export type { CheckoutInput, EstadoPedido, LineaPedido, Pedido, PromocionAplicada, PublicArchivo, SucursalEntrega };
+export type {
+  CambioEstatus,
+  Cancelacion,
+  CheckoutInput,
+  EstatusPedido,
+  ResultadoPago,
+  LineaPedido,
+  Pago,
+  Pedido,
+  PromocionAplicada,
+  PublicArchivo,
+  SucursalEntrega,
+};
 
 /** Pedido con los datos públicos de los archivos de sus líneas, por id. */
 export interface PedidoResponse {
@@ -153,6 +174,11 @@ export const pedidosApi = {
 
   detalle: (id: string) => apiFetch<PedidoResponse>(`/api/pedidos/${encodeURIComponent(id)}`),
 
-  cancelar: (id: string) =>
-    apiFetch<PedidoResponse>(`/api/pedidos/${encodeURIComponent(id)}/cancelar`, { method: "POST" }),
+  /** Página de pago simulada (SPEC 07): lo que respondería Mercado Pago. */
+  pagarSimulado: (id: string, resultado: ResultadoPago) =>
+    apiFetch<PedidoResponse>(`/api/pedidos/${encodeURIComponent(id)}/pago-simulado`, {
+      method: "POST",
+      body: { resultado },
+    }),
+
 };

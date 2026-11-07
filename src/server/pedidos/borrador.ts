@@ -10,7 +10,7 @@ import type { LineaPedido, Pedido, PromocionAplicada } from "@/server/domain/ped
 import { apiError } from "@/server/http/responses";
 import {
   archivoRepository,
-  EstadoPedidoInvalidoError,
+  EstatusPedidoInvalidoError,
   pedidoRepository,
   userRepository,
 } from "@/server/repositories";
@@ -180,12 +180,12 @@ export async function cambiarBorrador(
     const borrador = await pedidoRepository.crearBorrador(userId);
     try {
       return await pedidoRepository.update(borrador.id, async (pedido) => {
-        if (pedido.estado !== "borrador") throw new EstadoPedidoInvalidoError(pedido.id, pedido.estado);
+        if (pedido.estatus !== "borrador") throw new EstatusPedidoInvalidoError(pedido.id, pedido.estatus);
         await cambiar(pedido);
         await recalcularBorrador(pedido, contexto);
       });
     } catch (error) {
-      if (!(error instanceof EstadoPedidoInvalidoError) || intento > 0) throw error;
+      if (!(error instanceof EstatusPedidoInvalidoError) || intento > 0) throw error;
     }
   }
 }

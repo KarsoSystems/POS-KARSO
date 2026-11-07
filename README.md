@@ -14,6 +14,7 @@ El trabajo se define con specs en [`specs/`](specs/). Lo implementado hoy:
 - [SPEC 04](specs/04-catalogo-y-cotizacion-karso.md): catálogo de KARSO (productos con variantes, atributos, medidas y acabados, simulados), cotización de la sección 5.4 y banners en el inicio del panel.
 - [SPEC 05](specs/05-archivos-frente-reverso-y-validacion.md): archivos de la línea según la sección 5.7: subida en tres pasos que emula R2, frente y reverso (archivo, calendario o texto) y validación de formato, peso, CMYK, dpi y medida que solo advierte.
 - [SPEC 06](specs/06-checkout-sucursal-factura-y-promociones.md): checkout en el borrador: sucursal de entrega, "Requiero factura" con datos fiscales (catálogos del SAT) e IVA, y códigos de promoción, con los totales de KARSO 5.4.
+- [SPEC 07](specs/07-pago-mercado-pago-emulado-y-folio-kar.md): pago con Mercado Pago emulado (aprobar, rechazar o dejar pendiente), folio `KAR-AAAA-NNNNNN`, estatus e historial de KARSO (`pago_pendiente` → `enviado`) y cancelación automática si no se paga a tiempo.
 
 ## Arrancar el demo
 
@@ -40,7 +41,7 @@ Abre <http://localhost:3000>. Te redirige a `/login`.
 
    La cotización se actualiza en vivo. Ejemplos: tarjeta couché × 2 millares con suaje = $310.00; lona 720 dpi de 2.00 × 1.50 m × 2 con ojillos = $414.00. Los precios del catálogo son **sin IVA**.
 5. En el **borrador**, elige la **sucursal de entrega** (obligatoria; no hay entrega a domicilio), aplica **códigos de promoción** (p. ej. `KARSO10`) y marca **"Requiero factura"** si la necesitas: se suma el IVA y se piden tus datos fiscales (ver [Checkout](#checkout-sucursal-factura-y-promociones)).
-6. **Hacer pedido** congela precios, descuentos e IVA, asigna un folio (`P-000001`, …) y deja el pago como "Pago pendiente". Mientras el pedido esté en estado "Pedido" lo puedes cancelar desde su detalle (y sus códigos se pueden volver a usar).
+6. **Hacer pedido** congela precios, descuentos e IVA, asigna un folio (`KAR-2026-000001`, …), deja el pedido en **Pago pendiente** y te lleva a la **página de pago simulada**: elige **Aprobar**, **Rechazar** o **Dejarlo pendiente** (no se cobra nada). Aprobado, el pedido pasa a **Enviado**; si no, desde el detalle puedes volver a **Pagar** hasta la hora límite (ver [Pago](#pago-mercado-pago-emulado)).
 
 **"Continuar con Google"** es una simulación: un modal pide nombre y correo, sin OAuth. Si el correo ya tiene cuenta, entra a esa misma cuenta. Si no, crea una y pide completar apellidos y WhatsApp.
 
@@ -56,7 +57,8 @@ Abre <http://localhost:3000>. Te redirige a `/login`.
 | `/panel/pedidos/nuevo` | Borrador: líneas con su desglose, sucursal de entrega, códigos de promoción, factura, totales, "Agregar ítem" y "Hacer pedido" |
 | `/panel/pedidos/nuevo/item` | Editor de una línea nueva, con cotización en vivo. `?producto=<_id>` llega con ese producto elegido |
 | `/panel/pedidos/nuevo/item/[itemId]` | Editor de un ítem existente |
-| `/panel/pedidos/[id]` | Detalle de un pedido confirmado: líneas, entrega, factura y totales; "Cancelar pedido" mientras está en "Pedido" |
+| `/panel/pedidos/[id]` | Detalle de un pedido confirmado: estatus, líneas, entrega, factura y totales; en "Pago pendiente", la hora límite y "Pagar"; ya pagado, "Pagado el … · Ref. …" |
+| `/panel/pedidos/[id]/pago` | Página de pago simulada (emula Mercado Pago Checkout Pro): folio, total, hora límite y "Aprobar", "Rechazar" o "Dejarlo pendiente" |
 
 **API de la tienda** (pública, sin sesión; filtra el servidor, como las rutas `/tienda` del backend de KARSO):
 
@@ -84,7 +86,9 @@ Abre <http://localhost:3000>. Te redirige a `/login`.
 | `POST /api/pedidos/borrador/confirmar` | "Hacer pedido": copia los archivos a `pedidos/<folio>/` y registra los usos de sus códigos; 422 `PEDIDO_VACIO`, 409 `ITEMS_CON_PROBLEMAS`, 422 `CHECKOUT_INCOMPLETO` (falta la sucursal o, con factura, los datos fiscales), 409 `PROMOCION_INVALIDA` (un código dejó de valer: el borrador queda sin él) |
 | `GET /api/pedidos` | Pedidos confirmados del usuario, recientes primero |
 | `GET /api/pedidos/:id` | Detalle; 404 si no es del usuario |
-| `POST /api/pedidos/:id/cancelar` | Cancelar (libera los usos de sus códigos); 409 si el estado no es "Pedido" |
+| `POST /api/pedidos/:id/pago-simulado` | Resultado del pago `{ resultado: "aprobado" \| "rechazado" \| "pendiente" }` (lo que hará el webhook de Mercado Pago): aprobado → `enviado`. 404 si no es del usuario; 409 `PAGO_VENCIDO` si ya venció; 409 `ESTATUS_INVALIDO` si ya no espera pago |
+
+`GET /api/pedidos` y `GET /api/pedidos/:id` cancelan antes de responder los pedidos del usuario cuyo pago venció. **No hay ruta para cancelar:** solo el admin cancela, desde el panel.
 
 ## Variables de entorno
 
@@ -110,7 +114,7 @@ El panel de administración de KARSO es otro proyecto y todavía no existe. Lo q
 | `banners.json` | 4 banners: 2 vigentes (Tarjetas y Lonas), "Buen Fin" con vigencia del 13 al 16 nov 2026 y uno inactivo. |
 | `sucursales.json` | Las 3 sucursales: "KARSO Centro" (la de KARSO 6.3) y dos de ejemplo, "KARSO Cumbres" y "KARSO San Nicolás". |
 | `promociones.json` | 7 códigos para probar: `KARSO10` (10 %), `BIENVENIDA5` (5 %, un uso por cliente) y `MAYOREO25` (25 %), vigentes hasta 2030; `BUENFIN10` (el de KARSO, del 13 al 17 nov 2026), `VERANO15` (vencido), `SUCURSAL20` (solo mostrador) y `PAUSA30` (inactivo). `usosActuales` lo lleva el panel: la tienda no lo lee ni lo escribe. |
-| `configuracion.json` | Lo de KARSO 6.9 que usa la tienda: zona horaria, IVA de 0.16 y reglas de promociones (2 códigos por pedido, modo `suma`, tope de 30 %). |
+| `configuracion.json` | Lo de KARSO 6.9 que usa la tienda: zona horaria (`America/Mexico_City`; KARSO dice `America/Monterrey`, mismo desfase todo el año: hay que acordarlo con el socio), IVA de 0.16, reglas de promociones (2 códigos por pedido, modo `suma`, tope de 30 %) y `pedidos.horasExpiracionPagoPendiente: 24`. |
 | `public/mock/` | Imágenes SVG de ejemplo de los productos y los banners (escritorio y móvil). |
 
 **Supuestos del mock** (también en `supuestos` de `productos.json`): los precios salen de la lista de KARSO (sección 5.13) y pueden estar desactualizados. Lo que KARSO no detalla se rellenó así: rebase 0.3 cm, tolerancia 0.1 y 5 días de entrega; caras como su equivalente de la sección 6.4; volantes bond de 4 y 8 cartas con las medidas de su fila; adhesivo en el grupo de armado `Adhesivos`; despunte, suaje y foliado solo en tarjetas por millar. La lona urgente está **solo en canal `mostrador`**: la tienda no la ofrece. Quedan fuera los productos con datos pendientes (tarjeta sulfatada, folder, notas, corte de vinil) o fuera del MVP (DTF, planchado, sublimación, sand blast). En los volantes, el orden de atributos es papel → tamaño → ajuste, porque el papel define qué tamaños existen.
@@ -137,7 +141,7 @@ Los datos viven en `data/` y los archivos subidos en `uploads/`. Git ignora las 
 | `data/users.json` | Usuarios. La contraseña se guarda hasheada con bcrypt, nunca en texto plano. Versión 2: suma `datosFiscales` y `usosPromociones`; un archivo de la versión 1 **se migra** (no se pierden usuarios), con un aviso en la consola. |
 | `data/counters.json` | Consecutivo del `idCliente`. |
 | `data/verifications.json` | Códigos de WhatsApp vigentes. |
-| `data/orders.json` | Pedidos (incluido un borrador por cliente) y `ultimoFolio`, el consecutivo de los folios `P-000001`. Versión 4 (líneas de KARSO con `archivos: { frente, reverso }`, sucursal, factura y promociones): un archivo de una versión anterior se reemplaza por uno vacío al primer uso, con un aviso en la consola. |
+| `data/orders.json` | Pedidos (incluido un borrador por cliente) y `contadores`, el consecutivo de los folios por año (`"pedidos-2026": 7`, como KARSO 6.10). Versión 5 (líneas de KARSO con `archivos: { frente, reverso }`, sucursal, factura, promociones, estatus, historial y pagos): un archivo de una versión anterior se reemplaza por uno vacío al primer uso, con un aviso en la consola. |
 | `data/archivos.json` | Datos de los archivos (dueño, nombre, formato, peso, llave, estado `pendiente`/`subido`, píxeles, color y si tiene miniatura). Versión 2: uno de la versión 1 se reemplaza por uno vacío, con aviso. |
 | `uploads/temporal/<id>.<ext>` | Archivos recién subidos, de borradores (el "R2 local"). La miniatura va junto, en `<id>.<ext>.miniatura.jpg`. |
 | `uploads/pedidos/<folio>/<lineaId>_<cara>.<ext>` | Copias de los archivos de cada pedido hecho (`_frente` y `_reverso`), con su miniatura. |
@@ -146,9 +150,9 @@ Solo el dueño ve o descarga sus archivos, por `GET /api/archivos/:id`; `uploads
 
 **Para reiniciar todo**, detén el servidor y borra `data/` y `uploads/`. Si el navegador conserva una cookie de sesión de un usuario que ya no existe, la app la limpia y te manda a `/login`.
 
-**Para reiniciar solo los pedidos**, detén el servidor y borra `data/orders.json`, `data/archivos.json` y `uploads/`. Los folios vuelven a empezar en `P-000001`.
+**Para reiniciar solo los pedidos**, detén el servidor y borra `data/orders.json`, `data/archivos.json` y `uploads/`. Los folios vuelven a empezar en `KAR-<año>-000001`.
 
-**Estados del pedido:** `borrador` → `pedido` (al confirmar) → `en_proceso` → `entregado`, o `cancelado` (el cliente cancela mientras está en `pedido`). En el demo no hay panel de la imprenta: para mover un pedido a `en_proceso` o `entregado`, edita su `estado` en `data/orders.json`.
+**Estatus del pedido** (KARSO 5.8, campo `estatus`): `borrador` (propio del demo: el carrito) → `pago_pendiente` (al hacer el pedido) → `enviado` (pago aprobado) → `recibido` → `en_proceso` → `listo` → `entregado`, o `rechazado` / `cancelado`. La tienda solo produce `pago_pendiente`, `enviado` y `cancelado` (por vencimiento); los demás los asigna el panel (SPEC 08). En el demo no hay panel: para ver otro estatus, edita el `estatus` del pedido en `data/orders.json`. Cada cambio queda en `historialEstatus` (fecha, quién y comentario).
 
 **Archivos sin usar:** si un cliente sube un archivo y abandona el editor sin guardar, el archivo queda en `uploads/temporal/` (o `pendiente`, si nunca llegó el binario). Quitar una línea o cambiar su archivo sí borra el anterior cuando ninguna otra lo usa, y "Hacer pedido" borra los temporales que pasó a `pedidos/<folio>/`. En R2 una regla de ciclo de vida de 48 h limpiará `temporal/`; en el demo no hay limpieza automática.
 
@@ -172,7 +176,32 @@ Reglas de `KARSO-PROMPT-v1.md` 3, 5.4 y 5.5, implementadas en el [SPEC 06](specs
 - Hasta `maxCodigosPorPedido` códigos. Con `modoCombinacion: "suma"` cada código descuenta sobre el subtotal; con `"cascada"`, sobre lo que queda. El total no pasa de `descuentoMaximoPorcentaje`: el código que lo rebasa aplica solo lo que falta para el tope.
 - Ejemplo de KARSO 6.5: subtotal $724.00 con `BUENFIN10` = descuento $72.40, base $651.60; con factura, IVA $104.26 y **total $755.86** (sin factura, $651.60).
 - Un código que deja de valer en el borrador (vence, se agota, se desactiva) **se quita solo, con un aviso**. Si pasa justo al hacer el pedido, la API responde 409 para que el cliente vea el total nuevo antes.
-- ⚠️ **Provisional:** mientras no haya backend, los usos se guardan **en el usuario** (`usosPromociones` en `users.json`, uno por código y pedido) y los totales de un código son la suma de todos los usuarios. Cancelar un pedido **libera** sus códigos. El backend definirá su colección (y hará atómico el conteo, como pide KARSO); hay que acordarlo con el socio.
+- ⚠️ **Provisional:** mientras no haya backend, los usos se guardan **en el usuario** (`usosPromociones` en `users.json`, uno por código y pedido) y los totales de un código son la suma de todos los usuarios. Un pedido cancelado (por vencimiento del pago) **libera** sus códigos. El backend definirá su colección (y hará atómico el conteo, como pide KARSO); hay que acordarlo con el socio.
+
+## Pago: Mercado Pago emulado
+
+Reglas de `KARSO-PROMPT-v1.md` 5.6 y 5.8, implementadas en el [SPEC 07](specs/07-pago-mercado-pago-emulado-y-folio-kar.md). Mercado Pago se emula, como "Continuar con Google": **no hay cobros reales**.
+
+**Hacer pedido** crea el pedido en `pago_pendiente` con folio `KAR-AAAA-NNNNNN` (un contador por año; el año es el de la confirmación en la zona horaria de la tienda), `vencimientoPago` = confirmación + `horasExpiracionPagoPendiente` y su primer cambio en `historialEstatus`. Después lleva a la **página de pago simulada**, que emula Checkout Pro (el cliente "sale" a pagar y regresa al detalle):
+
+| Botón | Qué pasa |
+| --- | --- |
+| Aprobar | Se registra un pago `aprobado` por el total y el pedido pasa a **`enviado`** ("Pago aprobado por Mercado Pago" en el historial); `pagado` = total y `saldo` 0. |
+| Rechazar | Se registra el intento `rechazado`; el pedido sigue en `pago_pendiente` y el detalle ofrece "Pagar" para reintentar. |
+| Dejarlo pendiente | Se registra un pago `pendiente` (Mercado Pago aún no confirma); el pedido sigue en `pago_pendiente`. |
+
+Cada pago queda en `pagos[]` (KARSO 6.5: `tipo: "total"`, `metodo: "mercadopago"`, monto, referencia de 10 dígitos, estatus y fecha); `pagado` y `saldo` solo cuentan los aprobados. En producción, el resultado llega por el **webhook de Mercado Pago** (con firma), no por la página: `POST /api/pedidos/:id/pago-simulado` hace lo mismo que hará el webhook.
+
+**Vencimiento.** Si un pedido sigue en `pago_pendiente` cuando llega su hora límite (24 h por omisión), **se cancela al leerlo** (Mis pedidos, el detalle o el pago): `estatus: "cancelado"`, `cancelacion` con `por: "sistema"` y motivo "Pago no recibido en 24 h", y sus códigos de promoción se liberan. Ya no se puede pagar (409 `PAGO_VENCIDO`). Las fechas se muestran en la zona horaria de la tienda.
+
+**Solo el admin cancela** (KARSO 5.8): la tienda no tiene botón ni ruta para cancelar. Esto revierte la decisión anterior de dejar cancelar al cliente en `pago_pendiente`; un pedido que el cliente no quiere se deja vencer.
+
+**Nota para el socio: vencimiento en el backend.** En el demo no hay procesos en segundo plano, así que el vencimiento se revisa al leer. En el backend (NestJS en Railway) conviene **sumar** una tarea periódica, sin quitar la revisión al leer (que impide pagar un pedido vencido aunque la tarea se atrase):
+
+- dentro del mismo servicio con `@nestjs/schedule` (p. ej. cada 5 minutos); con más de una instancia, cada cancelación debe ser un `findOneAndUpdate` condicionado a `estatus: "pago_pendiente"` y al vencimiento, para que sea segura;
+- o como un servicio aparte con horario de cron en Railway, que corre y termina (revisar en su documentación la frecuencia mínima).
+
+Falta definir con el socio qué hacer si Mercado Pago aprueba un pago de un pedido que ya se canceló por tiempo (registrar el pago y marcarlo para reembolso, por ejemplo).
 
 ## Archivos de la línea
 
@@ -210,9 +239,9 @@ Reglas de `KARSO-PROMPT-v1.md` 5.7, implementadas en el [SPEC 05](specs/05-archi
 - `opcional` (tarjeta couché): sin reverso, tu archivo, calendario o texto;
 - `obligatorio` (tarjeta laminada): tu archivo, calendario o texto.
 
-La máquina imprime frente y reverso en la misma pasada. Cuando el cliente no tiene diseño de reverso, la imprenta aprovecha esa cara con un **calendario** (año actual o siguiente, zona America/Monterrey) o un **texto** de hasta 500 caracteres, como una oración o datos de contacto. El diseño lo hace la imprenta y **no tiene costo extra**. ⚠️ Esta regla no está en `KARSO-PROMPT-v1.md`: **hay que proponerla al socio**. Al recalcular el borrador, un calendario de un año que ya pasó marca la línea con problema.
+La máquina imprime frente y reverso en la misma pasada. Cuando el cliente no tiene diseño de reverso, la imprenta aprovecha esa cara con un **calendario** (año actual o siguiente, en la zona horaria de la tienda) o un **texto** de hasta 500 caracteres, como una oración o datos de contacto. El diseño lo hace la imprenta y **no tiene costo extra**. ⚠️ Esta regla no está en `KARSO-PROMPT-v1.md`: **hay que proponerla al socio**. Al recalcular el borrador, un calendario de un año que ya pasó marca la línea con problema.
 
-**Al hacer el pedido,** cada cara con archivo de cada línea se copia a `uploads/pedidos/<folio>/<lineaId>_frente.<ext>` (o `_reverso`), con su miniatura, como un archivo nuevo, y la línea apunta a él. Un mismo archivo en dos líneas se copia dos veces. Los temporales que ya nadie usa se borran. Las rutas usan el folio `P-…` hasta la SPEC 07 (pago).
+**Al hacer el pedido,** cada cara con archivo de cada línea se copia a `uploads/pedidos/<folio>/<lineaId>_frente.<ext>` (o `_reverso`), con su miniatura, como un archivo nuevo, y la línea apunta a él. Un mismo archivo en dos líneas se copia dos veces. Los temporales que ya nadie usa se borran. Las rutas usan el folio `KAR-…` (SPEC 07).
 
 **Imágenes de prueba:** `e2e/fixtures/generar-imagenes.mjs` genera las tarjetas (CMYK, RGB, girada, baja resolución, medida incorrecta, TIFF) y la lona de los ejemplos, de un solo color para que pesen poco. Están versionadas y un test revisa que tengan los píxeles y el color esperados. Para regenerarlas:
 
@@ -247,7 +276,7 @@ src/
 │   ├── sucursales/      #   esquema de sucursales (y dirección)
 │   ├── promociones/     #   esquema de promociones
 │   ├── configuracion/   #   esquema de la configuración general (lo que usa la tienda)
-│   └── pedidos/         #   cotización, promociones, evaluación de líneas, validación de archivos y formato (puros: los usan front y servidor)
+│   └── pedidos/         #   cotización, promociones, pago (folio, vencimiento), evaluación de líneas, validación de archivos y formato (puros: los usan front y servidor)
 ├── server/              # solo servidor: dominio, sesión, repositorios, mock del panel, almacén JSON y de archivos, URL firmada y sharp
 └── middleware.ts        # redirecciones según el estado de la cuenta
 config/mock-panel/       # productos, banners, sucursales, promociones y configuración simulados del panel de KARSO
@@ -297,7 +326,7 @@ Los colores viven en tokens de `src/app/globals.css`: `:root` es el claro y `.da
 | [04](specs/04-catalogo-y-cotizacion-karso.md) | Catálogo de KARSO simulado (variantes, atributos, medidas, acabados), cotización 5.4, banners en el inicio; retiro del precio por hoja | En verificación |
 | [05](specs/05-archivos-frente-reverso-y-validacion.md) | Archivos: subida en tres pasos (R2 emulado), frente y reverso (archivo, calendario o texto), validación 5.7 que solo advierte (CMYK, dpi, medida, formato, 40 MB) | En verificación |
 | [06](specs/06-checkout-sucursal-factura-y-promociones.md) | Checkout: sucursal de entrega, factura con IVA y datos fiscales (SAT), códigos de promoción (suma o cascada, tope, usos) | En verificación |
-| 07 | Pago: Mercado Pago emulado, folio `KAR-…`, `pago_pendiente` → `enviado`, vencimiento, cancelar solo en `pago_pendiente` | Pendiente |
+| [07](specs/07-pago-mercado-pago-emulado-y-folio-kar.md) | Pago: Mercado Pago emulado, folio `KAR-…`, estatus e historial de KARSO, `pago_pendiente` → `enviado`, vencimiento al leer; solo el admin cancela | En verificación |
 | 08 | Seguimiento: 8 estatus y estatus por línea, fecha de entrega, QR, rechazo y corrección, simulador del panel | Pendiente |
 | 09 | Perfil (socio, dirección, editar datos fiscales) y sesión con access/refresh y JWKS | Pendiente |
 

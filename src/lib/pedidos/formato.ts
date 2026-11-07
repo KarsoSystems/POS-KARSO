@@ -1,12 +1,35 @@
 // Formato para mostrar pedidos en la UI (es-MX).
 
-export type EstadoPedido = "borrador" | "pedido" | "en_proceso" | "entregado" | "cancelado";
+import { ZONA_HORARIA_TIENDA } from "@/lib/configuracion/schema";
 
-export const ETIQUETA_ESTADO: Record<EstadoPedido, string> = {
+/**
+ * Estatus del pedido de KARSO 6.5, más `borrador`, propio del demo (el carrito en
+ * el servidor). La tienda produce `pago_pendiente`, `enviado` y `cancelado`; los
+ * demás los asigna el panel (SPEC 08).
+ */
+export const ESTATUS_PEDIDO = [
+  "borrador",
+  "pago_pendiente",
+  "enviado",
+  "recibido",
+  "en_proceso",
+  "listo",
+  "entregado",
+  "rechazado",
+  "cancelado",
+] as const;
+
+export type EstatusPedido = (typeof ESTATUS_PEDIDO)[number];
+
+export const ETIQUETA_ESTATUS: Record<EstatusPedido, string> = {
   borrador: "Borrador",
-  pedido: "Pedido",
+  pago_pendiente: "Pago pendiente",
+  enviado: "Enviado",
+  recibido: "Recibido",
   en_proceso: "En proceso",
+  listo: "Listo",
   entregado: "Entregado",
+  rechazado: "Rechazado",
   cancelado: "Cancelado",
 };
 
@@ -17,8 +40,19 @@ export function formatearMxn(pesos: number): string {
   return mxn.format(pesos);
 }
 
-const fecha = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", year: "numeric" });
-const fechaHora = new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short" });
+// En la zona horaria de la tienda, no en la del navegador: la hora límite para
+// pagar es la misma para todos los clientes (SPEC 07).
+const fecha = new Intl.DateTimeFormat("es-MX", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: ZONA_HORARIA_TIENDA,
+});
+const fechaHora = new Intl.DateTimeFormat("es-MX", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: ZONA_HORARIA_TIENDA,
+});
 
 /** "30 oct 2026". */
 export function formatearFecha(iso: string): string {

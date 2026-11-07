@@ -65,11 +65,18 @@ export interface PedidoRepository {
   update(id: string, cambiar: CambiarPedido): Promise<Pedido>;
   /**
    * Aplica `cambiar` (p. ej. recalcular, validar y copiar los archivos a la carpeta
-   * del folio) y confirma el borrador: asigna el folio siguiente, pasa a `pedido` y
-   * fija confirmadoAt, todo en el mismo lock. Si `cambiar` lanza, el folio no se gasta.
-   * Lanza PedidoNoEncontradoError, EstadoPedidoInvalidoError o lo que lance `cambiar`.
+   * del folio) y confirma el borrador: asigna el folio siguiente del año en
+   * `zonaHoraria` ("KAR-2026-000001"), pasa a `pago_pendiente`, fija confirmadoAt,
+   * el plazo para pagar (`horasPago`, KARSO `horasExpiracionPagoPendiente`) y el
+   * primer cambio del historial, todo en el mismo lock. Si `cambiar` lanza, el folio
+   * no se gasta.
+   * Lanza PedidoNoEncontradoError, EstatusPedidoInvalidoError o lo que lance `cambiar`.
    */
-  confirmar(id: string, cambiar?: CambiarConfirmacion): Promise<Pedido>;
+  confirmar(
+    id: string,
+    cambiar?: CambiarConfirmacion,
+    opciones?: { zonaHoraria?: string; horasPago?: number },
+  ): Promise<Pedido>;
 }
 
 export class PedidoNoEncontradoError extends Error {
@@ -79,10 +86,10 @@ export class PedidoNoEncontradoError extends Error {
   }
 }
 
-export class EstadoPedidoInvalidoError extends Error {
-  constructor(id: string, estado: string) {
-    super(`El pedido ${id} está en estado ${estado}`);
-    this.name = "EstadoPedidoInvalidoError";
+export class EstatusPedidoInvalidoError extends Error {
+  constructor(id: string, estatus: string) {
+    super(`El pedido ${id} está en estatus ${estatus}`);
+    this.name = "EstatusPedidoInvalidoError";
   }
 }
 

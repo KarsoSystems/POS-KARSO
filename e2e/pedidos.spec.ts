@@ -12,6 +12,7 @@ import {
   opcion,
   confirmarPorApi,
   restaurarMock,
+  siguienteFolio,
   subirEnEditor,
   subirPorApi,
   tarjeta,
@@ -21,7 +22,6 @@ import {
 // Varios tests editan el mock del panel: siempre se deja como el de git.
 test.afterEach(restaurarMock);
 
-const folio = (n: number) => `P-${String(n).padStart(6, "0")}`;
 
 test.describe("Catálogo de la tienda", () => {
   test("/api/tienda/productos responde sin sesión, sin la lona urgente; un mock inválido → 500; /api/catalogo ya no existe", async ({
@@ -66,7 +66,7 @@ test.describe("Editor de línea", () => {
     await expect(page.getByTestId("total-pedido")).toHaveText("$310.00");
 
     const { pedidos } = await leerOrders();
-    const borrador = pedidos.find((p) => p.estado === "borrador" && p.productos.length === 1)!;
+    const borrador = pedidos.find((p) => p.estatus === "borrador" && p.productos.length === 1)!;
     expect(borrador.total).toBe(310);
   });
 
@@ -301,35 +301,38 @@ test.describe("Borrador", () => {
 
   test("un orders.json de la SPEC 02 (versión 1) se reemplaza por uno vacío sin romper la app", async ({ page }) => {
     await crearCuentaActiva(page.request);
-    const { ultimoFolio } = await leerOrders();
+    const { contadores } = await leerOrders();
     await escribirOrders({ version: 1, ultimoFolio: 7, pedidos: [{ id: "viejo", estado: "borrador", items: [], totales: {} }] });
 
     await page.goto("/panel/pedidos/nuevo");
     await expect(page.getByText("Tu pedido está vacío")).toBeVisible();
-    expect(await leerOrders()).toMatchObject({ version: 4 });
-    // Deja el contador como estaba para que los folios de otros tests sigan la secuencia.
-    const actual = await leerOrders();
-    await escribirOrders({ ...actual, ultimoFolio });
+    expect(await leerOrders()).toMatchObject({ version: 5 });
+    // Deja los contadores como estaban para que los folios de otros tests sigan la secuencia.
+    await escribirOrders({ ...(await leerOrders()), contadores });
   });
 });
 
-test.describe("Hacer pedido, detalle y cancelar", () => {
-  test("confirma con folio, pago pendiente y borrador nuevo vacío; aparece en Mis pedidos", async ({ page }) => {
+test.describe("Hacer pedido, pago y detalle", () => {
+  test("folio KAR, página de pago, Aprobar → Enviado, borrador nuevo vacío; aparece en Mis pedidos", async ({ page }) => {
     await crearCuentaActiva(page.request);
     await page.goto("/panel/pedidos");
     await expect(page.getByText("Aún no tienes pedidos")).toBeVisible();
 
     await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "tarjeta-cmyk.jpg")));
-    const esperado = folio((await leerOrders()).ultimoFolio + 1);
+    const esperado = await siguienteFolio();
 
     await page.goto("/panel/pedidos/nuevo");
     await expect(page.getByRole("button", { name: "Hacer pedido" })).toBeDisabled();
     await opcion(page, /KARSO Centro/).click();
     await page.getByRole("button", { name: "Hacer pedido" }).click();
-    await expect(page).toHaveURL(/\/panel\/pedidos\/[\w-]+\?confirmado=1$/);
-    await expect(page.getByText(`Pedido ${esperado} recibido`)).toBeVisible();
-    await expect(page.getByRole("heading", { name: new RegExp(esperado) })).toContainText("Pedido");
-    await expect(page.getByText("Pago pendiente")).toBeVisible();
+    await expect(page).toHaveURL(/\/panel\/pedidos\/[\w-]+\/pago$/);
+    await expect(page.getByText(esperado)).toBeVisible();
+    await expect(page.getByTestId("total-a-pagar")).toHaveText("$310.00");
+    await page.getByRole("button", { name: "Aprobar" }).click();
+    await expect(page).toHaveURL(/\/panel\/pedidos\/[\w-]+\?pago=aprobado$/);
+    await expect(page.getByText("Pago aprobado")).toBeVisible();
+    await expect(page.getByRole("heading", { name: new RegExp(esperado) })).toContainText("Enviado");
+    await expect(page.getByTestId("pago-aprobado")).toContainText(/Pagado el .+ · Ref\. \d{10}/);
     await expect(page.getByTestId("total-pedido")).toHaveText("$310.00");
     await expect(page.getByText("Tarjeta · Couché 8.7 x 5 cm")).toBeVisible();
 
@@ -338,7 +341,7 @@ test.describe("Hacer pedido, detalle y cancelar", () => {
 
     await page.goto("/panel/pedidos");
     const fila = page.getByRole("link", { name: new RegExp(esperado) });
-    await expect(fila).toContainText("Pedido");
+    await expect(fila).toContainText("Enviado");
     await expect(fila).toContainText("1 ítem");
     await expect(fila).toContainText("$310.00");
   });
@@ -360,28 +363,29 @@ test.describe("Hacer pedido, detalle y cancelar", () => {
     await expect(page.getByTestId("total-pedido")).toHaveText("$320.00"); // (120 + 40) × 2
   });
 
-  test("cancelar pasa a Cancelado; en_proceso no muestra el botón y la API responde 409", async ({ page }) => {
+  test("solo el admin cancela: sin botón ni ruta; un estatus del panel escrito a mano se muestra sin 'Pagar'", async ({
+    page,
+  }) => {
     await crearCuentaActiva(page.request);
-    const pedidos: { id: string; folio: string }[] = [];
-    for (let i = 0; i < 2; i++) {
-      await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "tarjeta-cmyk.jpg")));
-      pedidos.push(await confirmarPorApi(page.request));
+    await agregarPorApi(page.request, tarjeta(await subirPorApi(page.request, "tarjeta-cmyk.jpg")));
+    const pedido = await confirmarPorApi(page.request);
+
+    await page.goto(`/panel/pedidos/${pedido.id}`);
+    await expect(page.getByRole("link", { name: "Pagar $310.00" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cancelar pedido" })).toHaveCount(0);
+    expect((await page.request.post(`/api/pedidos/${pedido.id}/cancelar`)).status()).toBe(404);
+
+    for (const [estatus, etiqueta] of [
+      ["en_proceso", "En proceso"],
+      ["entregado", "Entregado"],
+    ]) {
+      const orders = await leerOrders();
+      orders.pedidos.find((p) => p.id === pedido.id)!.estatus = estatus;
+      await escribirOrders(orders);
+      await page.goto(`/panel/pedidos/${pedido.id}`);
+      await expect(page.getByRole("heading", { name: new RegExp(pedido.folio) })).toContainText(etiqueta);
+      await expect(page.getByRole("link", { name: /^Pagar/ })).toHaveCount(0);
     }
-
-    await page.goto(`/panel/pedidos/${pedidos[0].id}`);
-    await page.getByRole("button", { name: "Cancelar pedido" }).click();
-    await expect(page.getByText(`¿Cancelar el pedido ${pedidos[0].folio}?`)).toBeVisible();
-    await page.getByRole("button", { name: "Sí, cancelar pedido" }).click();
-    await expect(page.getByRole("heading", { name: new RegExp(pedidos[0].folio) })).toContainText("Cancelado");
-    await expect(page.getByRole("button", { name: "Cancelar pedido" })).toHaveCount(0);
-
-    const orders = await leerOrders();
-    orders.pedidos.find((p) => p.id === pedidos[1].id)!.estado = "en_proceso";
-    await escribirOrders(orders);
-    await page.goto(`/panel/pedidos/${pedidos[1].id}`);
-    await expect(page.getByRole("heading", { name: new RegExp(pedidos[1].folio) })).toContainText("En proceso");
-    await expect(page.getByRole("button", { name: "Cancelar pedido" })).toHaveCount(0);
-    expect((await page.request.post(`/api/pedidos/${pedidos[1].id}/cancelar`)).status()).toBe(409);
   });
 });
 

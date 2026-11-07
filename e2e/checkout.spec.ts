@@ -13,6 +13,7 @@ import {
   ID,
   leerOrders,
   lona,
+  moverVencimiento,
   opcion,
   restaurarMock,
   subirPorApi,
@@ -134,7 +135,8 @@ test.describe("Sucursal de entrega", () => {
     await opcion(page, /KARSO Centro/).click();
     await expect(page.getByText(/ya no está disponible/)).toHaveCount(0);
     await hacerPedido(page).click();
-    await expect(page.getByText(/Pedido P-\d+ recibido/)).toBeVisible();
+    await page.getByRole("link", { name: "Volver al pedido" }).click();
+    await expect(page.getByRole("heading", { name: /Pedido KAR-/ })).toBeVisible();
     await expect(page.getByText("KARSO Centro")).toBeVisible();
     await expect(page.getByText("Calle Morelos 456, Centro, Monterrey, Nuevo León, C.P. 64000")).toBeVisible();
     await expect(page.getByText("Tel. 8180001111")).toBeVisible();
@@ -254,7 +256,9 @@ test.describe("Códigos de promoción", () => {
     await expect(page.getByTestId("total-pedido")).toHaveText("$265.05");
   });
 
-  test("BIENVENIDA5: al hacer el pedido se registra, ya no se puede volver a usar y cancelar lo libera", async ({ page }) => {
+  test("BIENVENIDA5: al hacer el pedido se registra, ya no se puede volver a usar y el pago vencido lo libera", async ({
+    page,
+  }) => {
     await borradorConTarjeta(page.request);
     await page.request.post("/api/pedidos/borrador/promociones", { data: { codigo: "BIENVENIDA5" } });
     const pedido = await confirmarPorApi(page.request);
@@ -264,9 +268,9 @@ test.describe("Códigos de promoción", () => {
     await aplicar(page, "BIENVENIDA5");
     await expect(page.getByText("Ya usaste este código")).toBeVisible();
 
+    // Solo el admin cancela (SPEC 07): el código se libera cuando el pago vence.
+    await moverVencimiento(pedido.id);
     await page.goto(`/panel/pedidos/${pedido.id}`);
-    await page.getByRole("button", { name: "Cancelar pedido" }).click();
-    await page.getByRole("button", { name: "Sí, cancelar pedido" }).click();
     await expect(page.getByRole("heading", { name: new RegExp(pedido.folio) })).toContainText("Cancelado");
 
     await page.goto("/panel/pedidos/nuevo");
@@ -314,7 +318,9 @@ test.describe("Totales de KARSO 5.4", () => {
     await expect(page.getByTestId("total-pedido")).toHaveText("$755.86");
 
     await hacerPedido(page).click();
-    await expect(page.getByText(/Pedido P-\d+ recibido/)).toBeVisible();
+    await expect(page.getByTestId("total-a-pagar")).toHaveText("$755.86");
+    await page.getByRole("button", { name: "Aprobar" }).click();
+    await expect(page.getByText("Pago aprobado")).toBeVisible();
     const resumen = page.getByTestId("total-pedido").locator("xpath=ancestor::dl");
     await expect(resumen).toContainText("Subtotal$724.00");
     await expect(resumen).toContainText("BUENFIN10 (10 %)−$72.40");
@@ -349,14 +355,14 @@ test.describe("Totales de KARSO 5.4", () => {
 test.describe("Datos de versiones anteriores", () => {
   test("un orders.json de versión 3 se reemplaza por uno vacío sin romper la app", async ({ page }) => {
     await crearCuentaActiva(page.request);
-    const { ultimoFolio } = await leerOrders();
+    const { contadores } = await leerOrders();
     await escribirOrders({ version: 3, ultimoFolio: 9, pedidos: [{ id: "viejo", estado: "borrador", productos: [] }] });
 
     await page.goto("/panel/pedidos/nuevo");
     await expect(page.getByText("Tu pedido está vacío")).toBeVisible();
-    expect(await leerOrders()).toMatchObject({ version: 4 });
-    // Deja el contador como estaba para que los folios de otros tests sigan la secuencia.
-    await escribirOrders({ ...(await leerOrders()), ultimoFolio });
+    expect(await leerOrders()).toMatchObject({ version: 5 });
+    // Deja los contadores como estaban para que los folios de otros tests sigan la secuencia.
+    await escribirOrders({ ...(await leerOrders()), contadores });
   });
 
   test("un users.json de versión 1 se migra sin perder usuarios y la sesión sigue funcionando", async ({ page }) => {
@@ -393,7 +399,7 @@ test.describe("375 px", () => {
     await sinScrollHorizontal(page);
 
     await hacerPedido(page).click();
-    await expect(page.getByText(/Pedido P-\d+ recibido/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Aprobar" })).toBeVisible();
     await sinScrollHorizontal(page);
   });
 });

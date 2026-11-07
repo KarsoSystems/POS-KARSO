@@ -2,9 +2,10 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { formatFolio } from "@/server/domain/pedido";
+import { ZONA_HORARIA_TIENDA } from "@/lib/configuracion/schema";
+import { anioEn, formatFolio } from "@/lib/pedidos/pago";
 import { createJsonPedidoRepository } from "./json-pedido-repository";
-import { EstadoPedidoInvalidoError, PedidoNoEncontradoError, type PedidoRepository } from "./types";
+import { EstatusPedidoInvalidoError, PedidoNoEncontradoError, type PedidoRepository } from "./types";
 
 let dir: string;
 let repo: PedidoRepository;
@@ -20,21 +21,19 @@ afterEach(async () => {
 
 const readOrders = async () => JSON.parse(await readFile(path.join(dir, "orders.json"), "utf8"));
 
-describe("formatFolio", () => {
-  it("rellena a 6 dígitos", () => {
-    expect(formatFolio(1)).toBe("P-000001");
-    expect(formatFolio(1234)).toBe("P-001234");
-  });
-});
+// El folio usa el año de hoy en la zona de la tienda: "KAR-2026-000001".
+const ANIO = anioEn(new Date(), ZONA_HORARIA_TIENDA);
+const folio = (n: number) => formatFolio(ANIO, n);
+const contador = async () => (await readOrders()).contadores[`pedidos-${ANIO}`] ?? 0;
 
 describe("orders.json de versiones anteriores", () => {
-  it.each([1, 2, 3])("un archivo de versión %i se descarta y se reinicia vacío en la versión 4", async (version) => {
+  it.each([1, 2, 3, 4])("un archivo de versión %i se descarta y se reinicia vacío en la versión 5", async (version) => {
     const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
     const v1 = { version, ultimoFolio: 3, pedidos: [{ id: "viejo", userId: "u1", estado: "borrador", items: [] }] };
     await writeFile(path.join(dir, "orders.json"), JSON.stringify(v1));
 
     expect(await repo.findBorrador("u1")).toBeNull();
-    expect(await readOrders()).toEqual({ version: 4, ultimoFolio: 0, pedidos: [] });
+    expect(await readOrders()).toEqual({ version: 5, contadores: {}, pedidos: [] });
     expect(aviso).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`orders\\.json: versión ${version} descartada`)));
     aviso.mockRestore();
   });
@@ -46,7 +45,8 @@ describe("borrador", () => {
     expect(pedido).toMatchObject({
       folio: null,
       userId: "u1",
-      estado: "borrador",
+      estatus: "borrador",
+      historialEstatus: [],
       productos: [],
       subtotal: 0,
       descuento: 0,
@@ -54,12 +54,15 @@ describe("borrador", () => {
       tasaIva: 0,
       iva: 0,
       total: 0,
-      pago: { estado: "pendiente" },
+      vencimientoPago: null,
+      pagos: [],
+      pagado: 0,
+      saldo: 0,
+      cancelacion: null,
       confirmadoAt: null,
-      canceladoAt: null,
     });
     expect(await repo.findBorrador("u1")).toEqual(pedido);
-    expect(await readOrders()).toEqual({ version: 4, ultimoFolio: 0, pedidos: [pedido] });
+    expect(await readOrders()).toEqual({ version: 5, contadores: {}, pedidos: [pedido] });
   });
 
   it("findBorrador devuelve null si el usuario no tiene", async () => {
@@ -94,11 +97,11 @@ describe("update", () => {
     const pedido = await repo.crearBorrador("u1");
     await new Promise((r) => setTimeout(r, 5));
     const actualizado = await repo.update(pedido.id, (p) => {
-      p.estado = "cancelado";
+      p.estatus = "cancelado";
     });
-    expect(actualizado.estado).toBe("cancelado");
+    expect(actualizado.estatus).toBe("cancelado");
     expect(actualizado.updatedAt > pedido.updatedAt).toBe(true);
-    expect((await repo.findById(pedido.id))?.estado).toBe("cancelado");
+    expect((await repo.findById(pedido.id))?.estatus).toBe("cancelado");
   });
 
   it("no deja cambiar id, userId, folio ni createdAt", async () => {
@@ -121,11 +124,11 @@ describe("update", () => {
     const pedido = await repo.crearBorrador("u1");
     await expect(
       repo.update(pedido.id, (p) => {
-        p.estado = "cancelado";
+        p.estatus = "cancelado";
         throw new Error("no");
       }),
     ).rejects.toThrow("no");
-    expect((await repo.findById(pedido.id))?.estado).toBe("borrador");
+    expect((await repo.findById(pedido.id))?.estatus).toBe("borrador");
   });
 
   it("un id inexistente lanza PedidoNoEncontradoError", async () => {
@@ -134,12 +137,38 @@ describe("update", () => {
 });
 
 describe("confirmar", () => {
-  it("asigna P-000001, pasa a pedido y fija confirmadoAt", async () => {
+  it("asigna KAR-<año>-000001, pasa a pago_pendiente y fija confirmadoAt", async () => {
     const borrador = await repo.crearBorrador("u1");
     const pedido = await repo.confirmar(borrador.id);
-    expect(pedido).toMatchObject({ folio: "P-000001", estado: "pedido" });
+    expect(pedido).toMatchObject({ folio: `KAR-${ANIO}-000001`, estatus: "pago_pendiente" });
     expect(pedido.confirmadoAt).toBe(pedido.updatedAt);
-    expect((await readOrders()).ultimoFolio).toBe(1);
+    expect(await contador()).toBe(1);
+  });
+
+  it("un contador por año: el primero de 2027 (en la Ciudad de México) vuelve a 000001", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-12-31T23:30:00-06:00"));
+      expect((await repo.confirmar((await repo.crearBorrador("u1")).id)).folio).toBe("KAR-2026-000001");
+      expect((await repo.confirmar((await repo.crearBorrador("u2")).id)).folio).toBe("KAR-2026-000002");
+      vi.setSystemTime(new Date("2027-01-01T00:10:00-06:00"));
+      expect((await repo.confirmar((await repo.crearBorrador("u3")).id)).folio).toBe("KAR-2027-000001");
+      expect((await readOrders()).contadores).toEqual({ "pedidos-2026": 2, "pedidos-2027": 1 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("el año sale de la zona horaria que se le pase", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2027-01-01T03:00:00Z")); // 31 dic 21:00 en CDMX, 1 ene en UTC
+      const cdmx = await repo.confirmar((await repo.crearBorrador("u1")).id, undefined, { zonaHoraria: "America/Mexico_City" });
+      const utc = await repo.confirmar((await repo.crearBorrador("u2")).id, undefined, { zonaHoraria: "UTC" });
+      expect([cdmx.folio, utc.folio]).toEqual(["KAR-2026-000001", "KAR-2027-000001"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("aplica los cambios en el mismo lock (p. ej. congelar totales)", async () => {
@@ -156,8 +185,8 @@ describe("confirmar", () => {
     const pedido = await repo.confirmar((await repo.crearBorrador("u2")).id, (_p, folio) => {
       folios.push(folio);
     });
-    expect(folios).toEqual(["P-000002"]);
-    expect(pedido.folio).toBe("P-000002");
+    expect(folios).toEqual([folio(2)]);
+    expect(pedido.folio).toBe(folio(2));
   });
 
   it("si el cambio lanza, no se confirma ni se gasta folio", async () => {
@@ -167,17 +196,17 @@ describe("confirmar", () => {
         throw new Error("vacío");
       }),
     ).rejects.toThrow("vacío");
-    expect((await readOrders()).ultimoFolio).toBe(0);
-    expect((await repo.findById(borrador.id))?.estado).toBe("borrador");
+    expect(await contador()).toBe(0);
+    expect((await repo.findById(borrador.id))?.estatus).toBe("borrador");
 
-    expect((await repo.confirmar(borrador.id)).folio).toBe("P-000001");
+    expect((await repo.confirmar(borrador.id)).folio).toBe(folio(1));
   });
 
   it("solo confirma borradores", async () => {
     const borrador = await repo.crearBorrador("u1");
     await repo.confirmar(borrador.id);
-    await expect(repo.confirmar(borrador.id)).rejects.toBeInstanceOf(EstadoPedidoInvalidoError);
-    expect((await readOrders()).ultimoFolio).toBe(1);
+    await expect(repo.confirmar(borrador.id)).rejects.toBeInstanceOf(EstatusPedidoInvalidoError);
+    expect(await contador()).toBe(1);
   });
 
   it("folios consecutivos y sin repetir con confirmaciones concurrentes", async () => {
@@ -187,8 +216,8 @@ describe("confirmar", () => {
     const confirmados = await Promise.all(borradores.map((b) => repo.confirmar(b.id)));
 
     const folios = confirmados.map((p) => p.folio).sort();
-    expect(folios).toEqual(Array.from({ length: 8 }, (_, i) => formatFolio(i + 1)));
-    expect((await readOrders()).ultimoFolio).toBe(8);
+    expect(folios).toEqual(Array.from({ length: 8 }, (_, i) => folio(i + 1)));
+    expect(await contador()).toBe(8);
   });
 });
 

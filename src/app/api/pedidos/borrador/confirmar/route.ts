@@ -12,12 +12,12 @@ import {
   PromocionInvalidaError,
   respuestaPedido,
 } from "@/server/pedidos/borrador";
-import { EstadoPedidoInvalidoError, pedidoRepository, userRepository } from "@/server/repositories";
+import { EstatusPedidoInvalidoError, pedidoRepository, userRepository } from "@/server/repositories";
 
 /**
  * "Hacer pedido": congela precios, descuentos e IVA, copia los archivos a
- * `pedidos/<folio>/`, asigna el folio, pasa el borrador a `pedido` y registra los
- * usos de sus códigos. Exige sucursal y, con factura, datos fiscales. Las
+ * `pedidos/<folio>/`, asigna el folio KAR, pasa el borrador a `pago_pendiente`
+ * con su plazo para pagar y registra los usos de sus códigos. Exige sucursal y, con factura, datos fiscales. Las
  * advertencias de archivo no bloquean.
  */
 export async function POST() {
@@ -33,10 +33,17 @@ export async function POST() {
 
   try {
     let temporales: string[] = [];
-    const pedido = await pedidoRepository.confirmar(borrador.id, async (p, folio) => {
-      await prepararConfirmacion(p, contexto);
-      temporales = await copiarArchivosAlPedido(p, folio);
-    });
+    const pedido = await pedidoRepository.confirmar(
+      borrador.id,
+      async (p, folio) => {
+        await prepararConfirmacion(p, contexto);
+        temporales = await copiarArchivosAlPedido(p, folio);
+      },
+      {
+        zonaHoraria: contexto.configuracion.zonaHoraria,
+        horasPago: contexto.configuracion.pedidos.horasExpiracionPagoPendiente,
+      },
+    );
     // Fuera del lock de orders.json: liberar lee los pedidos del usuario.
     for (const id of temporales) await liberarArchivoSiNoSeUsa(guard.user.id, id);
     await userRepository.registrarUsosPromociones(
@@ -65,7 +72,7 @@ export async function POST() {
       return apiError(422, "CHECKOUT_INCOMPLETO", error.message, error.fields);
     }
     // Se confirmó en otra pestaña entre leer y confirmar.
-    if (error instanceof EstadoPedidoInvalidoError) {
+    if (error instanceof EstatusPedidoInvalidoError) {
       return apiError(409, "ESTADO_INVALIDO", "Este pedido ya se confirmó");
     }
     throw error;

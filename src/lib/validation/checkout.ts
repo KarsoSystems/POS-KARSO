@@ -19,3 +19,11 @@ export const codigoPromocionSchema = z.object({
 
 export type CheckoutInput = z.input<typeof checkoutSchema>;
 export type CheckoutData = z.output<typeof checkoutSchema>;
+
+/** POST /api/pedidos/:id/pago-simulado: lo que respondería Mercado Pago (SPEC 07). */
+export const RESULTADOS_PAGO = ["aprobado", "rechazado", "pendiente"] as const;
+export type ResultadoPago = (typeof RESULTADOS_PAGO)[number];
+
+export const pagoSimuladoSchema = z.object({
+  resultado: z.enum(RESULTADOS_PAGO, { error: "Resultado de pago inválido" }),
+});

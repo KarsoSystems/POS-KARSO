@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LineaInput } from "@/lib/validation/pedidos";
-import { pedidosApi, type CheckoutInput, type PedidoResponse } from "@/lib/pedidos-api";
+import { pedidosApi, type CheckoutInput, type PedidoResponse, type ResultadoPago } from "@/lib/pedidos-api";
 import { queryKeys } from "./query-keys";
 
 /** Borrador del usuario (el servidor lo crea si no hay), con los archivos de sus líneas. */
@@ -72,12 +72,21 @@ export function useConfirmarPedido() {
   });
 }
 
-export function useCancelarPedido(id: string) {
+/**
+ * Resultado de la página de pago simulada. Guarda el pedido de la respuesta en la
+ * caché de su detalle y vuelve a pedir la lista (cambia su estatus). Si el pago
+ * venció o el pedido ya no espera pago (409), también se refresca el detalle.
+ */
+export function usePagarSimulado(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => pedidosApi.cancelar(id),
+    mutationFn: (resultado: ResultadoPago) => pedidosApi.pagarSimulado(id, resultado),
     onSuccess: (datos) => {
       queryClient.setQueryData(queryKeys.pedido(id), datos);
+      queryClient.invalidateQueries({ queryKey: queryKeys.pedidos });
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.pedido(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.pedidos });
     },
   });

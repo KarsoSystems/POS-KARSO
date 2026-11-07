@@ -15,6 +15,7 @@ import {
   opcion,
   confirmarPorApi,
   restaurarMock,
+  siguienteFolio,
   subirEnEditor,
   subirPorApi,
   tarjeta,
@@ -28,7 +29,7 @@ test.afterEach(restaurarMock);
 
 const ADVERTENCIA = "Tu archivo podría ser rechazado al revisarlo en sucursal";
 const anioActual = () =>
-  Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Monterrey", year: "numeric" }).format(new Date()));
+  Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Mexico_City", year: "numeric" }).format(new Date()));
 
 /** Las advertencias (motivos) que muestra la página. */
 const motivos = (page: Page) => page.locator("[data-slot=alert-description] li");
@@ -394,12 +395,13 @@ test.describe("Hacer pedido con advertencias", () => {
     await expect(page.getByText("tarjeta-baja-resolucion.jpg", { exact: true })).toBeVisible();
     await page.goto("/panel/pedidos/nuevo");
 
-    const { ultimoFolio } = await leerOrders();
-    const folio = `P-${String(ultimoFolio + 1).padStart(6, "0")}`;
+    const folio = await siguienteFolio();
     await opcion(page, /KARSO Centro/).click();
     await expect(page.getByRole("button", { name: "Hacer pedido" })).toBeEnabled();
     await page.getByRole("button", { name: "Hacer pedido" }).click();
-    await expect(page.getByText(`Pedido ${folio} recibido`)).toBeVisible();
+    await page.getByRole("button", { name: "Aprobar" }).click();
+    await expect(page.getByText("Pago aprobado")).toBeVisible();
+    await expect(page.getByRole("heading", { name: new RegExp(folio) })).toBeVisible();
     await expect(page.getByText("Podría ser rechazado", { exact: true })).toBeVisible();
     expect(await miniaturasCargadas(page)).toBe(2);
 
@@ -425,17 +427,16 @@ test.describe("Datos de versiones anteriores", () => {
     page,
   }) => {
     await crearCuentaActiva(page.request);
-    const { ultimoFolio } = await leerOrders();
+    const { contadores } = await leerOrders();
     await escribirOrders({ version: 2, ultimoFolio: 7, pedidos: [{ id: "viejo", estado: "borrador", productos: [] }] });
     await writeFile(`${DATA_DIR}/archivos.json`, JSON.stringify({ version: 1, archivos: [{ id: "viejo" }] }));
 
     await page.goto("/panel/pedidos/nuevo");
     await expect(page.getByText("Tu pedido está vacío")).toBeVisible();
-    expect(await leerOrders()).toMatchObject({ version: 4 });
+    expect(await leerOrders()).toMatchObject({ version: 5 });
     expect((await page.request.get("/api/archivos/viejo")).status()).toBe(404);
-    // Deja el contador como estaba para que los folios de otros tests sigan la secuencia.
-    const actual = await leerOrders();
-    await escribirOrders({ ...actual, ultimoFolio });
+    // Deja los contadores como estaban para que los folios de otros tests sigan la secuencia.
+    await escribirOrders({ ...(await leerOrders()), contadores });
   });
 });
 

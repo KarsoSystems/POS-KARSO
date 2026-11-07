@@ -77,7 +77,7 @@ describe("pedidosApi", () => {
     ["confirmar", () => pedidosApi.confirmar(), "POST", "/api/pedidos/borrador/confirmar"],
     ["listar", () => pedidosApi.listar(), "GET", "/api/pedidos"],
     ["detalle", () => pedidosApi.detalle("p1"), "GET", "/api/pedidos/p1"],
-    ["cancelar", () => pedidosApi.cancelar("p1"), "POST", "/api/pedidos/p1/cancelar"],
+    ["pagarSimulado", () => pedidosApi.pagarSimulado("p1", "aprobado"), "POST", "/api/pedidos/p1/pago-simulado"],
   ])("%s → %s %s", async (_, call, method, path) => {
     fetchMock.mockResolvedValue(jsonResponse(200, {}));
     await call();
@@ -91,6 +91,12 @@ describe("pedidosApi", () => {
       headers: { "content-type": "application/json" },
       body: '{"cantidad":10}',
     });
+  });
+
+  it("pagarSimulado manda el resultado como JSON", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, {}));
+    await pedidosApi.pagarSimulado("p1", "rechazado");
+    expect(fetchMock.mock.calls[0][1].body).toBe('{"resultado":"rechazado"}');
   });
 
   it("cambiarCheckout y aplicarCodigo mandan su cuerpo como JSON", async () => {

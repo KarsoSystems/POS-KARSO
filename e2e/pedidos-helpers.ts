@@ -2,6 +2,8 @@ import { copyFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path";
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 import type { BannersArchivo } from "../src/lib/banners/schema";
+import { ZONA_HORARIA_TIENDA } from "../src/lib/configuracion/schema";
+import { anioEn, formatFolio } from "../src/lib/pedidos/pago";
 import type { ProductosArchivo, Variante } from "../src/lib/catalogo/schema";
 import {
   BANNERS_ORIGINAL,
@@ -43,17 +45,58 @@ interface LineaGuardada {
   problema: string | null;
 }
 
-/** Contenido de orders.json del servidor de e2e. */
+export interface PedidoGuardado {
+  id: string;
+  folio: string | null;
+  userId: string;
+  estatus: string;
+  productos: LineaGuardada[];
+  total: number;
+  confirmadoAt: string | null;
+  vencimientoPago: string | null;
+  pagos: { estatus: string; monto: number; referencia: string }[];
+  pagado: number;
+  saldo: number;
+}
+
+/** Contenido de orders.json del servidor de e2e (versión 5: `contadores` por año, como KARSO 6.10). */
 export async function leerOrders(): Promise<{
   version: number;
-  ultimoFolio: number;
-  pedidos: { id: string; folio: string | null; userId: string; estado: string; productos: LineaGuardada[]; total: number }[];
+  contadores: Record<string, number>;
+  pedidos: PedidoGuardado[];
 }> {
   try {
     return JSON.parse(await readFile(path.join(DATA_DIR, "orders.json"), "utf8"));
   } catch {
-    return { version: 4, ultimoFolio: 0, pedidos: [] };
+    return { version: 5, contadores: {}, pedidos: [] };
   }
+}
+
+/** El folio que recibirá el siguiente pedido: "KAR-2026-000007". */
+export async function siguienteFolio(): Promise<string> {
+  const anio = anioEn(new Date(), ZONA_HORARIA_TIENDA);
+  const { contadores } = await leerOrders();
+  return formatFolio(anio, (contadores[`pedidos-${anio}`] ?? 0) + 1);
+}
+
+/**
+ * Hace que el plazo para pagar de un pedido ya haya pasado: mueve hacia atrás la
+ * confirmación y la hora límite (conserva el plazo de 24 h del motivo).
+ * `segundosRestantes` > 0 deja el plazo a punto de vencer, sin vencer todavía.
+ */
+export async function moverVencimiento(pedidoId: string, segundosRestantes = -60) {
+  const orders = await leerOrders();
+  const pedido = orders.pedidos.find((p) => p.id === pedidoId)!;
+  const plazo = Date.parse(pedido.vencimientoPago!) - Date.parse(pedido.confirmadoAt!);
+  const limite = Date.now() + segundosRestantes * 1000;
+  pedido.vencimientoPago = new Date(limite).toISOString();
+  pedido.confirmadoAt = new Date(limite - plazo).toISOString();
+  await escribirOrders(orders);
+}
+
+/** Lo que respondería Mercado Pago, por la API de la página de pago simulada. */
+export async function pagarPorApi(request: APIRequestContext, pedidoId: string, resultado = "aprobado") {
+  return request.post(`/api/pedidos/${pedidoId}/pago-simulado`, { data: { resultado } });
 }
 
 export async function escribirOrders(data: unknown) {
@@ -61,7 +104,7 @@ export async function escribirOrders(data: unknown) {
   await writeFile(path.join(DATA_DIR, "orders.json"), JSON.stringify(data, null, 2));
 }
 
-/** Archivos bajo uploads/<carpeta> ("temporal" o "pedidos/P-000001"), sin los temporales de escritura. */
+/** Archivos bajo uploads/<carpeta> ("temporal" o "pedidos/KAR-2026-000001"), sin los temporales de escritura. */
 export async function enUploads(carpeta = "temporal"): Promise<string[]> {
   const archivos = await readdir(path.join(UPLOADS_DIR, carpeta)).catch(() => [] as string[]);
   return archivos.filter((a) => !a.startsWith("."));
@@ -145,7 +188,7 @@ export async function confirmarPorApi(request: APIRequestContext, sucursalEntreg
   await checkoutPorApi(request, { sucursalEntregaId });
   const res = await request.post("/api/pedidos/borrador/confirmar");
   expect(res.status()).toBe(201);
-  return (await res.json()).pedido as { id: string; folio: string; total: number; productos: LineaGuardada[] };
+  return (await res.json()).pedido as PedidoGuardado & { folio: string };
 }
 
 export async function agregarPorApi(request: APIRequestContext, linea: Record<string, unknown>) {

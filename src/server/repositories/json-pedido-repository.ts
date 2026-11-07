@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { calcularTotales } from "@/lib/pedidos/cotizacion";
-import { formatFolio, type Pedido } from "@/server/domain/pedido";
+import { ZONA_HORARIA_TIENDA } from "@/lib/configuracion/schema";
+import { anioEn, formatFolio, vencimientoPago } from "@/lib/pedidos/pago";
+import type { Pedido } from "@/server/domain/pedido";
 import { createJsonStore, resolveDataDir } from "@/server/storage/json-store";
 import {
-  EstadoPedidoInvalidoError,
+  EstatusPedidoInvalidoError,
   PedidoNoEncontradoError,
   type CambiarPedido,
   type PedidoRepository,
@@ -11,12 +13,13 @@ import {
 
 // El contador de folios vive en el mismo archivo que los pedidos: así el folio
 // se asigna bajo el mismo lock que la confirmación y no se gastan en borradores.
-// Versión 4 = líneas de KARSO (SPEC 04) con frente y reverso (SPEC 05), sucursal,
-// factura y promociones (SPEC 06); un archivo de una versión anterior se descarta:
-// eran datos de prueba del demo.
+// Versión 5 = líneas de KARSO (SPEC 04) con frente y reverso (SPEC 05), sucursal,
+// factura y promociones (SPEC 06), estatus, historial, pagos y folio KAR (SPEC 07);
+// un archivo de una versión anterior se descarta: eran datos de prueba del demo.
+// `contadores` sigue a KARSO 6.10: un consecutivo por año, "pedidos-2026".
 interface OrdersFile {
-  version: 4;
-  ultimoFolio: number;
+  version: 5;
+  contadores: Record<string, number>;
   pedidos: Pedido[];
 }
 
@@ -30,7 +33,7 @@ async function aplicar(pedido: Pedido, cambiar: CambiarPedido): Promise<void> {
 export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): PedidoRepository {
   const store = createJsonStore<OrdersFile>(
     "orders.json",
-    { version: 4, ultimoFolio: 0, pedidos: [] },
+    { version: 5, contadores: {}, pedidos: [] },
     dataDir,
     { versionDistinta: "descartar" },
   );
@@ -44,12 +47,12 @@ export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): 
   return {
     async findBorrador(userId) {
       const data = await store.read();
-      return data.pedidos.find((p) => p.userId === userId && p.estado === "borrador") ?? null;
+      return data.pedidos.find((p) => p.userId === userId && p.estatus === "borrador") ?? null;
     },
 
     crearBorrador(userId) {
       return store.update((data) => {
-        const existente = data.pedidos.find((p) => p.userId === userId && p.estado === "borrador");
+        const existente = data.pedidos.find((p) => p.userId === userId && p.estatus === "borrador");
         if (existente) return existente;
 
         const now = new Date().toISOString();
@@ -57,7 +60,8 @@ export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): 
           id: randomUUID(),
           folio: null,
           userId,
-          estado: "borrador",
+          estatus: "borrador",
+          historialEstatus: [],
           productos: [],
           sucursalEntregaId: null,
           sucursalEntrega: null,
@@ -66,11 +70,14 @@ export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): 
           datosFiscales: null,
           avisos: [],
           ...calcularTotales([]),
-          pago: { estado: "pendiente" },
+          vencimientoPago: null,
+          pagos: [],
+          pagado: 0,
+          saldo: 0,
+          cancelacion: null,
           createdAt: now,
           updatedAt: now,
           confirmadoAt: null,
-          canceladoAt: null,
         };
         data.pedidos.push(pedido);
         return pedido;
@@ -86,7 +93,7 @@ export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): 
       const data = await store.read();
       const fecha = (p: Pedido) => p.confirmadoAt ?? p.createdAt;
       return data.pedidos
-        .filter((p) => p.userId === userId && p.estado !== "borrador")
+        .filter((p) => p.userId === userId && p.estatus !== "borrador")
         .sort((a, b) => fecha(b).localeCompare(fecha(a)));
     },
 
@@ -98,18 +105,22 @@ export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): 
       });
     },
 
-    confirmar(id, cambiar = () => {}) {
+    confirmar(id, cambiar = () => {}, { zonaHoraria = ZONA_HORARIA_TIENDA, horasPago = 24 } = {}) {
       return store.update(async (data) => {
         const pedido = buscar(data, id);
-        if (pedido.estado !== "borrador") throw new EstadoPedidoInvalidoError(id, pedido.estado);
+        if (pedido.estatus !== "borrador") throw new EstatusPedidoInvalidoError(id, pedido.estatus);
 
-        const folio = formatFolio(data.ultimoFolio + 1);
+        const contador = `pedidos-${anioEn(new Date(), zonaHoraria)}`;
+        const consecutivo = (data.contadores[contador] ?? 0) + 1;
+        const folio = formatFolio(Number(contador.slice("pedidos-".length)), consecutivo);
         await aplicar(pedido, (p) => cambiar(p, folio));
         // Si `cambiar` lanzó, no se llega aquí y el folio no se consume.
-        data.ultimoFolio += 1;
+        data.contadores[contador] = consecutivo;
         pedido.folio = folio;
-        pedido.estado = "pedido";
+        pedido.estatus = "pago_pendiente";
         pedido.confirmadoAt = pedido.updatedAt;
+        pedido.vencimientoPago = vencimientoPago(pedido.confirmadoAt, horasPago);
+        pedido.historialEstatus = [{ estatus: "pago_pendiente", fecha: pedido.confirmadoAt, por: "sistema", comentario: "" }];
         return pedido;
       });
     },

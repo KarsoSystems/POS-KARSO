@@ -195,7 +195,7 @@ describe("validarArchivo", () => {
 });
 
 describe("aniosCalendario", () => {
-  it("usa el año de Monterrey: el 1 de enero a las 05:00 UTC todavía es 31 de diciembre allá", () => {
+  it("usa el año de la Ciudad de México: el 1 de enero a las 05:00 UTC todavía es 31 de diciembre allá", () => {
     expect(aniosCalendario(new Date("2027-01-01T05:00:00Z"))).toEqual([2026, 2027]);
     expect(aniosCalendario(new Date("2027-01-01T07:00:00Z"))).toEqual([2027, 2028]);
   });

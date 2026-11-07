@@ -1,8 +1,7 @@
 "use client";
 
-import { ArrowLeft, CheckCircle2, Clock, FileText, Loader2, MapPin, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, CreditCard, FileText, MapPin } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
 import { FormError } from "@/components/atoms/form-error";
 import { EstadoBadge } from "@/components/atoms/estado-badge";
 import { ItemResumen } from "@/components/molecules/item-resumen";
@@ -10,20 +9,12 @@ import { TotalesPedido } from "@/components/molecules/totales-pedido";
 import { Alert, AlertDescription, AlertTitle } from "@/components/atoms/alert";
 import { Button } from "@/components/atoms/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/atoms/dialog";
 import { Skeleton } from "@/components/atoms/skeleton";
 import { ApiError } from "@/lib/api-client";
-import { formatearFechaHora } from "@/lib/pedidos/formato";
+import { formatearFechaHora, formatearMxn } from "@/lib/pedidos/formato";
 import type { Pedido } from "@/lib/pedidos-api";
 import { REGIMENES_FISCALES, USOS_CFDI } from "@/lib/validation/fiscal";
-import { useCancelarPedido, usePedido } from "@/hooks/use-pedidos";
+import { usePedido } from "@/hooks/use-pedidos";
 
 const mensajeDe = (error: unknown, porDefecto: string) => (error instanceof ApiError ? error.message : porDefecto);
 
@@ -107,59 +98,79 @@ function Factura({ datos }: { datos: NonNullable<Pedido["datosFiscales"]> }) {
   );
 }
 
-interface ConfirmarCancelarProps {
-  folio: string;
-  open: boolean;
-  cancelando: boolean;
-  onOpenChange: (open: boolean) => void;
-  onConfirmar: () => void;
+const AMBAR = "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100";
+
+/** Aviso al volver de la página de pago (`?pago=aprobado|rechazado|pendiente|vencido`). */
+function AvisoPago({ resultado, pedido }: { resultado?: string; pedido: Pedido }) {
+  const limite = pedido.vencimientoPago ? formatearFechaHora(pedido.vencimientoPago) : "";
+  if (resultado === "aprobado" && pedido.estatus === "enviado") {
+    return (
+      <Alert className="border-exito/50 bg-exito/10 text-foreground [&>svg]:text-exito">
+        <CheckCircle2 />
+        <AlertTitle>Pago aprobado</AlertTitle>
+        <AlertDescription className="text-foreground/80">
+          Tu pedido {pedido.folio} se envió a la sucursal para que revisen tus archivos.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  if ((resultado === "rechazado" || resultado === "pendiente") && pedido.estatus === "pago_pendiente") {
+    return (
+      <Alert className={AMBAR}>
+        <AlertTriangle />
+        <AlertTitle>{resultado === "rechazado" ? "Tu pago fue rechazado" : "Tu pago quedó pendiente"}</AlertTitle>
+        <AlertDescription className="text-amber-800 dark:text-amber-200">
+          {resultado === "pendiente" && "Mercado Pago todavía no lo confirma. "}
+          Puedes intentarlo de nuevo antes del {limite}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  if (resultado === "vencido" || (resultado && pedido.estatus === "cancelado")) {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle />
+        <AlertTitle>El plazo para pagar venció</AlertTitle>
+        <AlertDescription>El pedido se canceló. Si todavía lo necesitas, haz uno nuevo.</AlertDescription>
+      </Alert>
+    );
+  }
+  return null;
 }
 
-function ConfirmarCancelar({ folio, open, cancelando, onOpenChange, onConfirmar }: ConfirmarCancelarProps) {
+/** Estado del pago en el resumen: "Pagar" con la hora límite, o el pago aprobado con su referencia. */
+function EstadoPago({ pedido }: { pedido: Pedido }) {
+  const aprobado = pedido.pagos.find((p) => p.estatus === "aprobado");
+  if (aprobado) {
+    return (
+      <p className="flex items-center gap-2 rounded-md bg-exito/10 p-2 text-sm" data-testid="pago-aprobado">
+        <CheckCircle2 className="size-4 shrink-0 text-exito" aria-hidden />
+        Pagado el {formatearFechaHora(aprobado.fecha)} · Ref. {aprobado.referencia}
+      </p>
+    );
+  }
+  if (pedido.estatus !== "pago_pendiente") return null;
   return (
-    <Dialog open={open} onOpenChange={(value) => !cancelando && onOpenChange(value)}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>¿Cancelar el pedido {folio}?</DialogTitle>
-          <DialogDescription>La imprenta no lo procesará. Esta acción no se puede deshacer.</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={cancelando}>
-            No, conservarlo
-          </Button>
-          <Button variant="destructive" onClick={onConfirmar} disabled={cancelando}>
-            {cancelando ? <Loader2 className="animate-spin" aria-hidden /> : <XCircle aria-hidden />}
-            Sí, cancelar pedido
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <div className="space-y-2">
+      <p className="flex items-center gap-2 rounded-md bg-muted p-2 text-sm">
+        <Clock className="size-4 shrink-0" aria-hidden />
+        {pedido.vencimientoPago ? `Paga antes del ${formatearFechaHora(pedido.vencimientoPago)}` : "Pago pendiente"}
+      </p>
+      <Button className="w-full" asChild>
+        <Link href={`/panel/pedidos/${pedido.id}/pago`}>
+          <CreditCard aria-hidden />
+          Pagar {formatearMxn(pedido.total)}
+        </Link>
+      </Button>
+    </div>
   );
 }
 
-export function DetallePedido({ id, recienConfirmado }: { id: string; recienConfirmado: boolean }) {
+export function DetallePedido({ id, resultadoPago }: { id: string; resultadoPago?: string }) {
   const detalle = usePedido(id);
-  const cancelarPedido = useCancelarPedido(id);
-  const [errorCancelar, setErrorCancelar] = useState<string>();
-  const [confirmarCancelar, setConfirmarCancelar] = useState(false);
-
   const datos = detalle.data;
-  const cancelando = cancelarPedido.isPending;
   const errorCarga = detalle.error;
-  const error = errorCancelar ?? (errorCarga ? mensajeDe(errorCarga, "No se pudo cargar el pedido") : undefined);
-
-  async function cancelar() {
-    setErrorCancelar(undefined);
-    try {
-      await cancelarPedido.mutateAsync();
-    } catch (e) {
-      setErrorCancelar(mensajeDe(e, "No se pudo cancelar el pedido"));
-      // Si el estado cambió (p. ej. ya está en proceso), se muestra el actual.
-      detalle.refetch();
-    } finally {
-      setConfirmarCancelar(false);
-    }
-  }
+  const error = errorCarga ? mensajeDe(errorCarga, "No se pudo cargar el pedido") : undefined;
 
   const pedido = datos?.pedido;
 
@@ -173,15 +184,7 @@ export function DetallePedido({ id, recienConfirmado }: { id: string; recienConf
         Mis pedidos
       </Link>
 
-      {recienConfirmado && pedido?.folio && (
-        <Alert className="border-exito/50 bg-exito/10 text-foreground [&>svg]:text-exito">
-          <CheckCircle2 />
-          <AlertTitle>Pedido {pedido.folio} recibido</AlertTitle>
-          <AlertDescription className="text-foreground/80">
-            La imprenta revisará tu pedido. El pago queda pendiente por ahora.
-          </AlertDescription>
-        </Alert>
-      )}
+      {pedido && <AvisoPago resultado={resultadoPago} pedido={pedido} />}
 
       <FormError message={error} />
 
@@ -198,7 +201,7 @@ export function DetallePedido({ id, recienConfirmado }: { id: string; recienConf
             <div className="space-y-2">
               <h1 className="flex flex-wrap items-center gap-3 text-2xl font-semibold tracking-tight">
                 Pedido <span className="font-mono">{pedido.folio}</span>
-                <EstadoBadge estado={pedido.estado} />
+                <EstadoBadge estatus={pedido.estatus} />
               </h1>
               <dl className="grid gap-x-6 gap-y-1 text-sm text-muted-foreground sm:grid-cols-[auto_1fr]">
                 {pedido.confirmadoAt && (
@@ -207,20 +210,16 @@ export function DetallePedido({ id, recienConfirmado }: { id: string; recienConf
                     <dd className="text-foreground">{formatearFechaHora(pedido.confirmadoAt)}</dd>
                   </>
                 )}
-                {pedido.canceladoAt && (
+                {pedido.cancelacion && (
                   <>
                     <dt>Cancelado</dt>
-                    <dd className="text-foreground">{formatearFechaHora(pedido.canceladoAt)}</dd>
+                    <dd className="text-foreground">
+                      {formatearFechaHora(pedido.cancelacion.fecha)} · {pedido.cancelacion.motivo}
+                    </dd>
                   </>
                 )}
               </dl>
             </div>
-            {pedido.estado === "pedido" && (
-              <Button variant="outline" onClick={() => setConfirmarCancelar(true)}>
-                <XCircle aria-hidden />
-                Cancelar pedido
-              </Button>
-            )}
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
@@ -241,24 +240,12 @@ export function DetallePedido({ id, recienConfirmado }: { id: string; recienConf
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <TotalesPedido totales={pedido} confirmado />
-                  <p className="flex items-center gap-2 rounded-md bg-muted p-2 text-sm">
-                    <Clock className="size-4 shrink-0" aria-hidden />
-                    Pago pendiente
-                  </p>
+                  <EstadoPago pedido={pedido} />
                 </CardContent>
               </Card>
             </div>
           </div>
 
-          {pedido.folio && (
-            <ConfirmarCancelar
-              folio={pedido.folio}
-              open={confirmarCancelar}
-              cancelando={cancelando}
-              onOpenChange={setConfirmarCancelar}
-              onConfirmar={cancelar}
-            />
-          )}
         </>
       )}
     </div>

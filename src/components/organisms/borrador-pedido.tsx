@@ -198,7 +198,8 @@ export function BorradorPedido() {
     setErrorAccion(undefined);
     try {
       const { pedido } = await confirmarPedido.mutateAsync();
-      router.push(`/panel/pedidos/${pedido.id}?confirmado=1`);
+      // Como Mercado Pago Checkout Pro: del pedido hecho se va a pagar.
+      router.push(`/panel/pedidos/${pedido.id}/pago`);
     } catch (e) {
       if (e instanceof ApiError && e.code === "PEDIDO_VACIO") setAvisoVacio(true);
       else setErrorAccion(mensajeDe(e, "No se pudo hacer el pedido"));
@@ -409,7 +410,7 @@ export function BorradorPedido() {
                   {confirmando ? <Loader2 className="animate-spin" aria-hidden /> : <Send aria-hidden />}
                   Hacer pedido
                 </Button>
-                <p className="text-xs text-muted-foreground">El pago se hace después; tu pedido queda con pago pendiente.</p>
+                <p className="text-xs text-muted-foreground">Al hacer el pedido pasas a pagarlo con Mercado Pago.</p>
               </CardContent>
             </Card>
           </div>

@@ -110,7 +110,7 @@ describe("GET /api/pedidos/borrador", () => {
     await iniciarSesionActiva();
     const primero = (await (await getBorrador()).json()).pedido;
     expect(primero).toMatchObject({
-      estado: "borrador",
+      estatus: "borrador",
       folio: null,
       productos: [],
       subtotal: 0,
@@ -192,7 +192,7 @@ describe("GET /api/pedidos/borrador", () => {
     errorSpy.mockRestore();
   });
 
-  it("un orders.json de la SPEC 02 (versión 1) se descarta sin romper y se reinicia en la versión 4", async () => {
+  it("un orders.json de la SPEC 02 (versión 1) se descarta sin romper y se reinicia en la versión 5", async () => {
     await iniciarSesionActiva();
     const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
     await mkdir(env.dataDir, { recursive: true });
@@ -203,7 +203,7 @@ describe("GET /api/pedidos/borrador", () => {
     const res = await getBorrador();
     expect(res.status).toBe(200);
     expect((await res.json()).pedido.productos).toEqual([]);
-    expect(await readJson("orders.json")).toMatchObject({ version: 4, ultimoFolio: 0 });
+    expect(await readJson("orders.json")).toMatchObject({ version: 5, contadores: {} });
     aviso.mockRestore();
   });
 });
@@ -325,7 +325,7 @@ describe("POST /api/pedidos/borrador/items", () => {
 });
 
 describe("frente y reverso (SPEC 05)", () => {
-  const anio = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Monterrey", year: "numeric" }).format(new Date()));
+  const anio = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Mexico_City", year: "numeric" }).format(new Date()));
   const conReverso = (archivoId: string, reverso: unknown, cambios: Record<string, unknown> = {}) =>
     tarjeta(archivoId, { archivos: { frente: archivoId, reverso }, ...cambios });
   const campos = async (res: Response) => (await res.json()).error.fields;

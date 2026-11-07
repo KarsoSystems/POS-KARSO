@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   formatearCm,
+  formatearFecha,
+  formatearFechaHora,
   formatearMxn,
   formatearNumero,
   formatearPeso,
@@ -103,5 +105,14 @@ describe("textoReverso", () => {
   it("recorta el texto largo a 60 caracteres con …", () => {
     const resultado = textoReverso({ tipo: "texto", texto: "a".repeat(500) });
     expect(resultado).toBe(`Texto: “${"a".repeat(59)}…”`);
+  });
+});
+
+describe("fechas en la zona de la tienda", () => {
+  it("la hora es la de la Ciudad de México, sin importar la zona del navegador", () => {
+    // 2026-11-08T19:38Z = 8 nov, 1:38 p.m. en CDMX (UTC−6).
+    expect(formatearFechaHora("2026-11-08T19:38:00.000Z")).toMatch(/^8 nov 2026, 1:38\sp\.\s?m\.$/);
+    // 2027-01-01T03:00Z todavía es 31 dic 2026 en CDMX.
+    expect(formatearFecha("2027-01-01T03:00:00.000Z")).toBe("31 dic 2026");
   });
 });

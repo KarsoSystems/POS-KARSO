@@ -42,7 +42,8 @@ function borrador(userId: string, subtotal: number, cambios: Partial<Pedido> = {
     id: "b1",
     folio: null,
     userId,
-    estado: "borrador",
+    estatus: "borrador",
+    historialEstatus: [],
     productos: [
       {
         productoId: "fuera-del-catalogo",
@@ -66,11 +67,14 @@ function borrador(userId: string, subtotal: number, cambios: Partial<Pedido> = {
     tasaIva: 0,
     iva: 0,
     total: 0,
-    pago: { estado: "pendiente" },
+    vencimientoPago: null,
+    pagos: [],
+    pagado: 0,
+    saldo: 0,
+    cancelacion: null,
     createdAt: HOY.toISOString(),
     updatedAt: HOY.toISOString(),
     confirmadoAt: null,
-    canceladoAt: null,
     ...cambios,
   };
 }

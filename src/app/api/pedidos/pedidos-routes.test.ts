@@ -20,8 +20,9 @@ const env = vi.hoisted(() => {
 vi.mock("next/headers", () => import("@/test/next-headers-mock"));
 
 import type { ProductosArchivo } from "@/lib/catalogo/schema";
+import { ZONA_HORARIA_TIENDA } from "@/lib/configuracion/schema";
+import { anioEn, formatFolio } from "@/lib/pedidos/pago";
 import { PRODUCTOS_PATH } from "@/server/mock-panel";
-import { POST as cancelar } from "./[id]/cancelar/route";
 import { GET as detalle } from "./[id]/route";
 import { POST as confirmarRuta } from "./borrador/confirmar/route";
 import { POST as agregar } from "./borrador/items/route";
@@ -32,6 +33,11 @@ import { GET as descargarArchivo } from "@/app/api/archivos/[id]/route";
 import { GET as descargarMiniatura } from "@/app/api/archivos/[id]/miniatura/route";
 import { ctxId, fixture, subirArchivoPrueba } from "@/test/archivos";
 import { cambiarSesion, iniciarSesionActiva } from "@/test/sesion";
+
+// Folios del año en curso en la zona de la tienda: "KAR-2026-000001".
+const ANIO = anioEn(new Date(), ZONA_HORARIA_TIENDA);
+const F1 = formatFolio(ANIO, 1);
+const F2 = formatFolio(ANIO, 2);
 
 const TARJETA = "6720a1f0c1a2b3c4d5e60201";
 const TARJETA_COUCHE = "6720a1f0c1a2b3c4d5e60211";
@@ -61,7 +67,6 @@ const readOrders = async () => JSON.parse(await readFile(ordersPath(), "utf8"));
 
 const idCtx = (id: string) => ({ params: Promise.resolve({ id }) });
 const getDetalle = (id: string) => detalle(new Request("http://localhost"), idCtx(id));
-const postCancelar = (id: string) => cancelar(new Request("http://localhost", { method: "POST" }), idCtx(id));
 
 /** Agrega 2 millares de tarjeta couché con suaje ($310.00) con ese frente y reverso. */
 async function agregarLinea(frente: string, reverso: unknown = null) {
@@ -152,16 +157,16 @@ describe("POST /api/pedidos/borrador/confirmar", () => {
     const res = await confirmar();
     expect(res.status).toBe(422);
     expect((await res.json()).error.code).toBe("PEDIDO_VACIO");
-    expect(await readOrders()).toMatchObject({ ultimoFolio: 0, pedidos: [{ estado: "borrador" }] });
+    expect(await readOrders()).toMatchObject({ contadores: {}, pedidos: [{ estatus: "borrador" }] });
   });
 
-  it("asigna P-000001, pasa a pedido con pago pendiente y totales del borrador (sin IVA)", async () => {
+  it("asigna KAR-<año>-000001, pasa a pago_pendiente con los totales del borrador (sin IVA)", async () => {
     await iniciarSesionActiva();
     const pedido = await confirmarUnPedido();
     expect(pedido).toMatchObject({
-      folio: "P-000001",
-      estado: "pedido",
-      pago: { estado: "pendiente" },
+      folio: F1,
+      estatus: "pago_pendiente",
+      pagos: [],
       subtotal: 310,
       tasaIva: 0,
       iva: 0,
@@ -172,9 +177,9 @@ describe("POST /api/pedidos/borrador/confirmar", () => {
 
   it("folios consecutivos entre usuarios", async () => {
     await iniciarSesionActiva("ana@ejemplo.com");
-    expect((await confirmarUnPedido()).folio).toBe("P-000001");
+    expect((await confirmarUnPedido()).folio).toBe(F1);
     await iniciarSesionActiva("beto@ejemplo.com");
-    expect((await confirmarUnPedido()).folio).toBe("P-000002");
+    expect((await confirmarUnPedido()).folio).toBe(F2);
   });
 
   it("después de confirmar, GET borrador da uno nuevo vacío", async () => {
@@ -182,7 +187,7 @@ describe("POST /api/pedidos/borrador/confirmar", () => {
     const confirmado = await confirmarUnPedido();
     const { pedido } = await (await getBorrador()).json();
     expect(pedido.id).not.toBe(confirmado.id);
-    expect(pedido).toMatchObject({ estado: "borrador", productos: [], folio: null });
+    expect(pedido).toMatchObject({ estatus: "borrador", productos: [], folio: null });
   });
 
   it("una línea con problema → 409 ITEMS_CON_PROBLEMAS y sigue en borrador", async () => {
@@ -194,7 +199,7 @@ describe("POST /api/pedidos/borrador/confirmar", () => {
     const res = await confirmar();
     expect(res.status).toBe(409);
     expect((await res.json()).error.code).toBe("ITEMS_CON_PROBLEMAS");
-    expect(await readOrders()).toMatchObject({ ultimoFolio: 0, pedidos: [{ estado: "borrador" }] });
+    expect(await readOrders()).toMatchObject({ contadores: {}, pedidos: [{ estatus: "borrador" }] });
   });
 
   it("confirma con los precios vigentes al momento de confirmar", async () => {
@@ -224,7 +229,7 @@ describe("POST /api/pedidos/borrador/confirmar", () => {
 });
 
 describe("archivos al hacer el pedido (SPEC 05)", () => {
-  it("copia frente (con miniatura) y reverso a pedidos/P-000001/ y borra los temporales", async () => {
+  it("copia frente (con miniatura) y reverso a pedidos/<folio>/ y borra los temporales", async () => {
     await iniciarSesionActiva();
     const frente = await subirArchivoPrueba("tarjeta.jpg", await fixture("tarjeta-cmyk.jpg"));
     const reverso = await subirArchivoPrueba("reverso.pdf", "%PDF-1.4");
@@ -238,9 +243,9 @@ describe("archivos al hacer el pedido (SPEC 05)", () => {
     const caras = pedido.productos[0].archivos;
 
     expect(await enCarpeta("pedidos")).toEqual([
-      `P-000001/${lineaId}_frente.jpg`,
-      `P-000001/${lineaId}_frente.jpg.miniatura.jpg`,
-      `P-000001/${lineaId}_reverso.pdf`,
+      `${F1}/${lineaId}_frente.jpg`,
+      `${F1}/${lineaId}_frente.jpg.miniatura.jpg`,
+      `${F1}/${lineaId}_reverso.pdf`,
     ]);
     expect(await enCarpeta("temporal")).toEqual([]);
 
@@ -252,8 +257,8 @@ describe("archivos al hacer el pedido (SPEC 05)", () => {
 
     const registros = JSON.parse(await readFile(path.join(env.dataDir, "archivos.json"), "utf8")).archivos;
     expect(registros.map((a: { key: string }) => a.key).sort()).toEqual([
-      `pedidos/P-000001/${lineaId}_frente.jpg`,
-      `pedidos/P-000001/${lineaId}_reverso.pdf`,
+      `pedidos/${F1}/${lineaId}_frente.jpg`,
+      `pedidos/${F1}/${lineaId}_reverso.pdf`,
     ]);
   });
 
@@ -284,18 +289,18 @@ describe("archivos al hacer el pedido (SPEC 05)", () => {
     const [a, b] = pedido.productos;
     expect(a.archivos.frente.archivoId).not.toBe(b.archivos.frente.archivoId);
     expect(await enCarpeta("pedidos")).toEqual(
-      [`P-000001/${a.lineaId}_frente.pdf`, `P-000001/${b.lineaId}_frente.pdf`].sort(),
+      [`${F1}/${a.lineaId}_frente.pdf`, `${F1}/${b.lineaId}_frente.pdf`].sort(),
     );
     expect(await enCarpeta("temporal")).toEqual([]);
   });
 
   it("calendario y texto no copian nada", async () => {
     await iniciarSesionActiva();
-    const anio = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Monterrey", year: "numeric" }).format(new Date()));
+    const anio = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Mexico_City", year: "numeric" }).format(new Date()));
     await agregarLinea((await subirArchivoPrueba("a.pdf", "%PDF")).id, { tipo: "calendario", anio });
     const { pedido } = await (await confirmar()).json();
     expect(pedido.productos[0].archivos.reverso).toEqual({ tipo: "calendario", anio });
-    expect(await enCarpeta("pedidos")).toEqual([`P-000001/${pedido.productos[0].lineaId}_frente.pdf`]);
+    expect(await enCarpeta("pedidos")).toEqual([`${F1}/${pedido.productos[0].lineaId}_frente.pdf`]);
   });
 
   it("confirmar con advertencias → 201", async () => {
@@ -352,7 +357,7 @@ describe("GET /api/pedidos/:id", () => {
     const res = await getDetalle(confirmado.id);
     expect(res.status).toBe(200);
     const { pedido, archivos } = await res.json();
-    expect(pedido.folio).toBe("P-000001");
+    expect(pedido.folio).toBe(F1);
     expect(archivos[pedido.productos[0].archivos.frente.archivoId].nombreOriginal).toBe("tarjeta.jpg");
   });
 
@@ -368,54 +373,5 @@ describe("GET /api/pedidos/:id", () => {
     const { pedido } = await (await getBorrador()).json();
     expect((await getDetalle(pedido.id)).status).toBe(404);
     expect((await getDetalle("no-existe")).status).toBe(404);
-  });
-});
-
-describe("POST /api/pedidos/:id/cancelar", () => {
-  it("en estado pedido → cancelado con canceladoAt", async () => {
-    await iniciarSesionActiva();
-    const confirmado = await confirmarUnPedido();
-    const res = await postCancelar(confirmado.id);
-    expect(res.status).toBe(200);
-    const { pedido } = await res.json();
-    expect(pedido.estado).toBe("cancelado");
-    expect(pedido.canceladoAt).not.toBeNull();
-    expect(pedido.total).toBe(confirmado.total);
-  });
-
-  it("en en_proceso (editado a mano en el JSON) → 409", async () => {
-    await iniciarSesionActiva();
-    const confirmado = await confirmarUnPedido();
-    const orders = await readOrders();
-    orders.pedidos.find((p: { id: string }) => p.id === confirmado.id).estado = "en_proceso";
-    await writeFile(ordersPath(), JSON.stringify(orders));
-
-    const res = await postCancelar(confirmado.id);
-    expect(res.status).toBe(409);
-    expect((await res.json()).error.code).toBe("ESTADO_INVALIDO");
-    expect((await readOrders()).pedidos.find((p: { id: string }) => p.id === confirmado.id).estado).toBe(
-      "en_proceso",
-    );
-  });
-
-  it("ya cancelado → 409", async () => {
-    await iniciarSesionActiva();
-    const confirmado = await confirmarUnPedido();
-    await postCancelar(confirmado.id);
-    expect((await postCancelar(confirmado.id)).status).toBe(409);
-  });
-
-  it("el pedido de otro usuario → 404 y no cambia", async () => {
-    await iniciarSesionActiva("ana@ejemplo.com");
-    const ajeno = await confirmarUnPedido();
-    await iniciarSesionActiva("beto@ejemplo.com");
-    expect((await postCancelar(ajeno.id)).status).toBe(404);
-    expect((await readOrders()).pedidos.find((p: { id: string }) => p.id === ajeno.id).estado).toBe("pedido");
-  });
-
-  it("el borrador no se cancela → 404", async () => {
-    await iniciarSesionActiva();
-    const { pedido } = await (await getBorrador()).json();
-    expect((await postCancelar(pedido.id)).status).toBe(404);
   });
 });

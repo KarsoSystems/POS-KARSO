@@ -1,4 +1,5 @@
 import type { Producto, ReglasArchivo, Variante } from "@/lib/catalogo/schema";
+import { ZONA_HORARIA_TIENDA } from "@/lib/configuracion/schema";
 import type { ArchivosLineaData, ExtensionPermitida } from "@/lib/validation/pedidos";
 
 // Validación de los archivos de una línea (KARSO-PROMPT-v1.md 5.7). Pura y
@@ -215,11 +216,9 @@ export type EvaluacionArchivos =
   | { ok: true; archivos: ArchivosLinea }
   | { ok: false; campo: CampoArchivos; mensaje: string };
 
-export const ZONA_HORARIA = "America/Monterrey";
-
-/** Años que se pueden elegir para el calendario del reverso: el actual y el siguiente, en Monterrey. */
+/** Años que se pueden elegir para el calendario del reverso: el actual y el siguiente, en la zona de la tienda. */
 export function aniosCalendario(ahora: Date = new Date()): [number, number] {
-  const actual = Number(new Intl.DateTimeFormat("en-US", { timeZone: ZONA_HORARIA, year: "numeric" }).format(ahora));
+  const actual = Number(new Intl.DateTimeFormat("en-US", { timeZone: ZONA_HORARIA_TIENDA, year: "numeric" }).format(ahora));
   return [actual, actual + 1];
 }
 

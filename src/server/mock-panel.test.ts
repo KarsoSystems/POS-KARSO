@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ProductosArchivo } from "@/lib/catalogo/schema";
+import { ZONA_HORARIA_TIENDA } from "@/lib/configuracion/schema";
 import {
   BANNERS_PATH,
   CONFIGURACION_PATH,
@@ -80,12 +81,17 @@ describe("mock del panel de ejemplo", () => {
     expect(promociones[0]).toMatchObject({ porcentaje: 10, vigencia: { inicio: "2026-11-13T06:00:00Z" } });
   });
 
-  it("configuracion.json: IVA 16 %, 2 códigos, suma y tope de 30 %", async () => {
+  it("configuracion.json: Ciudad de México, IVA 16 %, 2 códigos, suma, tope de 30 % y pago en 24 h", async () => {
     expect((await cargarConfiguracion()).configuracion).toEqual({
-      zonaHoraria: "America/Monterrey",
+      zonaHoraria: "America/Mexico_City",
       iva: { tasa: 0.16 },
       promociones: { maxCodigosPorPedido: 2, modoCombinacion: "suma", descuentoMaximoPorcentaje: 30 },
+      pedidos: { horasExpiracionPagoPendiente: 24 },
     });
+  });
+
+  it("la zona horaria de la configuración es la misma que usa la lógica pura del front", async () => {
+    expect((await cargarConfiguracion()).configuracion.zonaHoraria).toBe(ZONA_HORARIA_TIENDA);
   });
 });
 

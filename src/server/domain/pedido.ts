@@ -1,12 +1,12 @@
 import type { Totales } from "@/lib/pedidos/cotizacion";
-import type { EstadoPedido } from "@/lib/pedidos/formato";
+import type { EstatusPedido } from "@/lib/pedidos/formato";
 import type { LineaConArchivos } from "@/lib/pedidos/linea";
 import type { Direccion } from "@/lib/sucursales/schema";
 import type { DatosFiscales } from "@/lib/validation/fiscal";
 
-// EstadoPedido, Totales y LineaCotizada viven en src/lib porque el front los usa
+// EstatusPedido, Totales y LineaCotizada viven en src/lib porque el front los usa
 // (cotización en vivo, etiquetas); se re-exportan aquí como dominio.
-export type { EstadoPedido, Totales };
+export type { EstatusPedido, Totales };
 export type { EspecificacionLinea, MedidaLinea } from "@/lib/pedidos/cotizacion";
 export type { Advertencia, ArchivoLinea, ArchivosLinea, ReversoLinea } from "@/lib/pedidos/archivo-linea";
 
@@ -37,12 +37,40 @@ export interface PromocionAplicada {
   descuento: number; // en pesos
 }
 
+/** Un cambio de estatus (KARSO 6.5 `historialEstatus`). */
+export interface CambioEstatus {
+  estatus: EstatusPedido;
+  fecha: string; // ISO 8601
+  por: string; // "sistema" (o el id del empleado, desde el panel)
+  comentario: string;
+}
+
+/** Un pago (KARSO 6.5 `pagos`). En línea siempre es el total con Mercado Pago. */
+export interface Pago {
+  tipo: "total"; // anticipo y liquidación son de mostrador
+  metodo: "mercadopago";
+  monto: number; // en pesos
+  referencia: string; // 10 dígitos, como el id de pago de Mercado Pago
+  estatus: "aprobado" | "rechazado" | "pendiente";
+  fecha: string;
+  recibidoPor: null; // solo en mostrador
+}
+
+/** Cancelación (KARSO 6.5). En la tienda solo la hace el sistema, al vencer el pago. */
+export interface Cancelacion {
+  fecha: string;
+  por: string; // "sistema"
+  motivo: string; // "Pago no recibido en 24 h"
+  reembolso: null; // los reembolsos los registra el admin, desde el panel
+}
+
 /** Pedido con los totales de KARSO 5.4 (subtotal, descuento, baseIva, tasaIva, iva, total), en pesos. */
 export interface Pedido extends Totales {
   id: string; // UUID
-  folio: string | null; // "P-000001", se asigna al confirmar (KAR-… llega en la SPEC 06)
+  folio: string | null; // "KAR-2026-000001", se asigna al confirmar (SPEC 07)
   userId: string;
-  estado: EstadoPedido;
+  estatus: EstatusPedido;
+  historialEstatus: CambioEstatus[]; // [] en el borrador
   productos: LineaPedido[]; // máx. 20
   sucursalEntregaId: string | null; // obligatoria para hacer el pedido (SPEC 06)
   sucursalEntrega: SucursalEntrega | null; // propio del demo
@@ -50,13 +78,12 @@ export interface Pedido extends Totales {
   requiereFactura: boolean; // con factura, tasaIva = iva.tasa de la configuración
   datosFiscales: DatosFiscales | null; // en el borrador se conservan aunque se quite la factura; al confirmar sin factura, null
   avisos: string[]; // solo en el borrador: "El código VERANO15 ya no es válido: venció"
-  pago: { estado: "pendiente" };
+  vencimientoPago: string | null; // propio del demo: confirmadoAt + horasExpiracionPagoPendiente
+  pagos: Pago[];
+  pagado: number; // suma de los pagos aprobados, en pesos
+  saldo: number; // total − pagado
+  cancelacion: Cancelacion | null;
   createdAt: string; // ISO 8601
   updatedAt: string;
   confirmadoAt: string | null;
-  canceladoAt: string | null;
-}
-
-export function formatFolio(consecutivo: number): string {
-  return `P-${String(consecutivo).padStart(6, "0")}`;
 }

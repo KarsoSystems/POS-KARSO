@@ -15,7 +15,7 @@ export function FilaPedido({ pedido }: { pedido: Pedido }) {
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-mono font-medium">{pedido.folio}</span>
-            <EstadoBadge estado={pedido.estado} />
+            <EstadoBadge estatus={pedido.estatus} />
           </div>
           <p className="text-sm text-muted-foreground">
             {formatearFecha(pedido.confirmadoAt ?? pedido.createdAt)} · {items} {items === 1 ? "ítem" : "ítems"}

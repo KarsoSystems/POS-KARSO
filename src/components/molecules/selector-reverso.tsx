@@ -10,7 +10,7 @@ interface SelectorReversoProps {
   cara: "opcional" | "obligatorio";
   valor: ReversoElegido | null;
   onCambiar: (valor: ReversoElegido) => void;
-  /** Año actual y siguiente (zona America/Monterrey). */
+  /** Año actual y siguiente (zona America/Mexico_City). */
   anios: [number, number];
   /** La zona de subida del archivo del reverso; se muestra con "Mi archivo". */
   subida: ReactNode;

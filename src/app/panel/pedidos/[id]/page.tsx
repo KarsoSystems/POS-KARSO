@@ -8,8 +8,8 @@ export default async function DetallePedidoPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ confirmado?: string }>;
+  searchParams: Promise<{ pago?: string }>;
 }) {
-  const [{ id }, { confirmado }] = await Promise.all([params, searchParams]);
-  return <DetallePedido key={id} id={id} recienConfirmado={confirmado === "1"} />;
+  const [{ id }, { pago }] = await Promise.all([params, searchParams]);
+  return <DetallePedido key={id} id={id} resultadoPago={pago} />;
 }

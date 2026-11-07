@@ -12,6 +12,7 @@ import {
   useAplicarCodigo,
   useCambiarCheckout,
   useConfirmarPedido,
+  usePagarSimulado,
   usePedidos,
   useQuitarCodigo,
 } from "./use-pedidos";
@@ -139,5 +140,33 @@ describe("checkout del borrador (SPEC 06)", () => {
     await waitFor(() => expect(result.current.error).toBeInstanceOf(ApiError));
     expect((result.current.error as ApiError).fields).toEqual({ codigo: "Este código venció" });
     expect(queryClient.getQueryData(queryKeys.borrador)).toEqual(respuesta("b1"));
+  });
+});
+
+describe("usePagarSimulado", () => {
+  it("guarda el pedido de la respuesta en su detalle e invalida la lista", async () => {
+    const pagado = respuesta("p1", "enviado");
+    fetchMock.mockResolvedValue(jsonResponse(200, pagado));
+    queryClient.setQueryData(queryKeys.pedidos, { pedidos: [] });
+    const { result } = renderHook(() => usePagarSimulado("p1"), { wrapper });
+
+    await act(() => result.current.mutateAsync("aprobado"));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/pedidos/p1/pago-simulado");
+    expect(queryClient.getQueryData(queryKeys.pedido("p1"))).toEqual(pagado);
+    expect(queryClient.getQueryState(queryKeys.pedidos)?.isInvalidated).toBe(true);
+  });
+
+  it("un 409 PAGO_VENCIDO llega como ApiError e invalida el detalle", async () => {
+    queryClient.setQueryData(queryKeys.pedido("p1"), respuesta("p1", "pago_pendiente"));
+    fetchMock.mockResolvedValue(
+      jsonResponse(409, { error: { code: "PAGO_VENCIDO", message: "El plazo para pagar este pedido venció" } }),
+    );
+    const { result } = renderHook(() => usePagarSimulado("p1"), { wrapper });
+
+    await act(() => result.current.mutateAsync("aprobado").catch(() => {}));
+    await waitFor(() => expect(result.current.error).toMatchObject({ status: 409, code: "PAGO_VENCIDO" }));
+    expect(queryClient.getQueryState(queryKeys.pedido("p1"))?.isInvalidated).toBe(true);
   });
 });
