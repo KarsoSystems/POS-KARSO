@@ -16,15 +16,10 @@ import { useCuentaRegresiva } from "@/hooks/use-cuenta-regresiva";
 import { ApiError } from "@/lib/api-client";
 import { guardarDemoCodigo, leerDemoCodigo } from "@/lib/demo-codigo";
 import { applyApiError } from "@/lib/forms";
+import { formatearWhatsapp } from "@/lib/telefono";
 import { verificarWhatsappSchema, type VerificarWhatsappInput } from "@/lib/validation/auth";
 
 const COOLDOWN_SEGUNDOS = 60;
-
-/** "+525512345678" → "+52 55 1234 5678" */
-function formatearWhatsapp(whatsapp: string | null): string {
-  const m = whatsapp?.match(/^\+52(\d{2})(\d{4})(\d{4})$/);
-  return m ? `+52 ${m[1]} ${m[2]} ${m[3]}` : (whatsapp ?? "");
-}
 
 /** `siguiente`: la página del panel a la que volver al terminar (SPEC 08), ya validada por la página. */
 export function VerificarWhatsappForm({ siguiente = null }: { siguiente?: string | null }) {

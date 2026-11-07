@@ -8,4 +8,5 @@ export const queryKeys = {
   pedido: (id: string) => ["pedidos", "detalle", id],
   pedidoPorFolio: (folio: string) => ["pedidos", "folio", folio],
   demoPanel: ["demo-panel", "pedidos"],
+  telefonoEnCurso: ["perfil", "telefono"],
 } as const;

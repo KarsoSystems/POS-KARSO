@@ -4,12 +4,13 @@ import { z } from "zod";
 // el mock del panel (config/mock-panel/sucursales.json) y el front usa los tipos.
 
 const fechaSchema = z.iso.datetime({ message: "Fecha ISO 8601 inválida" });
-const textoSchema = (campo: string) => z.string().trim().min(1, `${campo} es obligatorio`);
+/** `obligatorio` concuerda con el campo: "La calle es obligatoria", "El estado es obligatorio". */
+const textoSchema = (campo: string, obligatorio = "obligatorio") => z.string().trim().min(1, `${campo} es ${obligatorio}`);
 
 export const direccionSchema = z.object({
-  calle: textoSchema("La calle"),
-  colonia: textoSchema("La colonia"),
-  ciudad: textoSchema("La ciudad"),
+  calle: textoSchema("La calle", "obligatoria"),
+  colonia: textoSchema("La colonia", "obligatoria"),
+  ciudad: textoSchema("La ciudad", "obligatoria"),
   estado: textoSchema("El estado"),
   codigoPostal: z.string().regex(/^\d{5}$/, "El código postal debe tener 5 dígitos"),
 });

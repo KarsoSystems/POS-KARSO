@@ -44,6 +44,7 @@ Abre <http://localhost:3000>. Te redirige a `/login`.
 6. **Hacer pedido** congela precios, descuentos e IVA, asigna un folio (`KAR-2026-000001`, …), deja el pedido en **Pago pendiente** y te lleva a la **página de pago simulada**: elige **Aprobar**, **Rechazar** o **Dejarlo pendiente** (no se cobra nada). Aprobado, el pedido pasa a **Enviado**; si no, desde el detalle puedes volver a **Pagar** hasta la hora límite (ver [Pago](#pago-mercado-pago-emulado)).
 7. **Sigue el pedido.** Arranca con `DEMO_PANEL=1 pnpm dev` y abre `/demo/panel` (el simulador del panel de KARSO): **Validar**, mueve cada línea a **En proceso** y **Listo**, y **Entregar**. En el detalle del pedido verás el estatus, "Disponible para recoger a partir del …", el historial y el QR (ver [Seguimiento](#seguimiento-estatus-por-línea-recoger-y-qr)).
 8. **Rechaza y corrige.** En `/demo/panel`, **Rechazar** un pedido enviado con un motivo por línea. En el detalle, el cliente ve los motivos y "Corrige antes del …", sube el archivo corregido de cada línea y pulsa **Enviar corrección** (ver [Rechazo y corrección](#rechazo-y-corrección-de-archivos)).
+9. **Mi perfil.** En `/panel/perfil` marca "Soy socio" con tu negocio y dirección, guarda tus datos fiscales (se precargan al pedir factura), cambia tu contraseña o tu teléfono (el número nuevo se confirma con un código, como en el registro). Ver [Perfil del cliente](#perfil-del-cliente).
 
 **"Continuar con Google"** es una simulación: un modal pide nombre y correo, sin OAuth. Si el correo ya tiene cuenta, entra a esa misma cuenta. Si no, crea una y pide completar apellidos y WhatsApp.
 
@@ -61,6 +62,7 @@ Abre <http://localhost:3000>. Te redirige a `/login`.
 | `/panel/pedidos/nuevo/item/[itemId]` | Editor de un ítem existente |
 | `/panel/pedidos/[id]` | Detalle de un pedido confirmado: estatus, líneas, entrega, factura y totales; en "Pago pendiente", la hora límite y "Pagar"; ya pagado, "Pagado el … · Ref. …"; rechazado, los motivos, "Subir archivo corregido" y "Enviar corrección" |
 | `/panel/pedidos/[id]/pago` | Página de pago simulada (emula Mercado Pago Checkout Pro): folio, total, hora límite y "Aprobar", "Rechazar" o "Dejarlo pendiente" |
+| `/panel/perfil` | Mi perfil: datos personales (solo lectura), teléfono, dirección y negocio, datos fiscales y contraseña, cada tarjeta por separado |
 | `/panel/seguimiento/[folio]` | Destino del QR: lleva al detalle del pedido si es del cliente; si no, "Pedido no encontrado" |
 | `/demo/panel` | Simulador del panel (solo con `DEMO_PANEL=1`; si no, 404): validar, rechazar, mover líneas y entregar |
 
@@ -94,6 +96,19 @@ Abre <http://localhost:3000>. Te redirige a `/login`.
 | `POST /api/pedidos/:id/pago-simulado` | Resultado del pago `{ resultado: "aprobado" \| "rechazado" \| "pendiente" }` (lo que hará el webhook de Mercado Pago): aprobado → `enviado`. 404 si no es del usuario; 409 `PAGO_VENCIDO` si ya venció; 409 `ESTATUS_INVALIDO` si ya no espera pago |
 | `PUT /api/pedidos/:id/lineas/:lineaId/archivos` | Archivo corregido de una línea rechazada: `{ frente?, reverso? }` (ids de archivos propios ya subidos). Reemplaza la cara y marca `corregidoEn`. 422 `LINEA_NO_RECHAZADA`, 422 por campo (sin caras, archivo inexistente o sin terminar, reverso en una línea sin reverso de archivo); 409 `ESTATUS_INVALIDO` si no está `rechazado`; 409 `CORRECCION_VENCIDA` |
 | `POST /api/pedidos/:id/correccion` | "Enviar corrección": `rechazado` → `enviado`. 422 `CORRECCION_INCOMPLETA` si falta una línea; 409 `CORRECCION_VENCIDA`; 409 `ESTATUS_INVALIDO` |
+
+**API del perfil** (SPEC 10; con sesión activa; responden `{ user }`, como `/api/auth/me`, que ahora trae también `tipo`, `direccion` y `nombreNegocio`):
+
+| Método y ruta | Uso |
+| --- | --- |
+| `PUT /api/perfil/direccion` | `{ tipo, nombreNegocio, direccion }`: socio exige negocio y dirección completa; ocasional, dirección opcional (`null`) y negocio `null`. 422 por campo (`nombreNegocio`, `direccion.calle`, …) |
+| `PUT` / `DELETE /api/perfil/datos-fiscales` | Guardar `{ datosFiscales }` (validación del SAT de la SPEC 06; 422 por campo) o borrarlos. Los pedidos hechos conservan su copia |
+| `PUT /api/perfil/contrasena` | `{ password, confirmacion }` (reglas del registro; sin pedir la actual). Una cuenta de Google sin contraseña la crea y suma `"password"` a `providers` |
+| `GET /api/perfil/telefono` | El cambio de teléfono en curso: `{ whatsappNuevo }` o `null` |
+| `POST /api/perfil/telefono` | `{ whatsapp }`: envía un código al número nuevo → `{ whatsappNuevo, reenviarEn, demoCodigo? }`. 422 si es inválido o es el actual; 429 antes de 60 s |
+| `POST /api/perfil/telefono/verificar` | `{ codigo }`: con el correcto, el número nuevo pasa a ser el teléfono. 422 `CODIGO_INCORRECTO` con intentos; 410 `CODIGO_EXPIRADO`, `CODIGO_AGOTADO` o `SIN_CODIGO` |
+| `POST /api/perfil/telefono/reenviar` | Otro código al número nuevo; 429 antes de 60 s; 410 sin cambio en curso |
+| `DELETE /api/perfil/telefono` | Cancela el cambio en curso |
 
 **API del simulador del panel** (solo con `DEMO_PANEL=1`, si no 404; sin sesión: hace lo que harán los endpoints del panel en el backend):
 
@@ -156,9 +171,9 @@ Los datos viven en `data/` y los archivos subidos en `uploads/`. Git ignora las 
 
 | Archivo | Contenido |
 | --- | --- |
-| `data/users.json` | Usuarios. La contraseña se guarda hasheada con bcrypt, nunca en texto plano. Versión 2: suma `datosFiscales` y `usosPromociones`; un archivo de la versión 1 **se migra** (no se pierden usuarios), con un aviso en la consola. |
+| `data/users.json` | Usuarios. La contraseña se guarda hasheada con bcrypt, nunca en texto plano. Versión 3: la 2 sumó `datosFiscales` y `usosPromociones`, la 3 suma `tipo` (`ocasional` / `socio`), `direccion` y `nombreNegocio` (KARSO 6.1). Un archivo de la versión 1 o 2 **se migra** (no se pierden usuarios), con un aviso en la consola. |
 | `data/counters.json` | Consecutivo del `idCliente`. |
-| `data/verifications.json` | Códigos de WhatsApp vigentes. |
+| `data/verifications.json` | Códigos de WhatsApp vigentes. Versión 2: cada código guarda el número al que se envió (el del registro o el nuevo del perfil); uno de la versión 1 se descarta (los códigos duran 10 min). |
 | `data/orders.json` | Pedidos (incluido un borrador por cliente) y `contadores`, el consecutivo de los folios por año (`"pedidos-2026": 7`, como KARSO 6.10). Versión 7 (líneas de KARSO con `archivos: { frente, reverso }`, sucursal, factura, promociones, estatus, historial y pagos; desde la SPEC 08, estatus y fecha por línea, `fechaInicioConteo`, `fechaEntregaEstimada` y `qr`; desde la SPEC 09, `rechazos` y `correccionEnviadaEn`): un archivo de una versión anterior se reemplaza por uno vacío al primer uso, con un aviso en la consola. |
 | `data/archivos.json` | Datos de los archivos (dueño, nombre, formato, peso, llave, estado `pendiente`/`subido`, píxeles, color y si tiene miniatura). Versión 2: uno de la versión 1 se reemplaza por uno vacío, con aviso. |
 | `uploads/temporal/<id>.<ext>` | Archivos recién subidos, de borradores (el "R2 local"). La miniatura va junto, en `<id>.<ext>.miniatura.jpg`. |
@@ -298,6 +313,17 @@ La nota de la SPEC 07 para el backend aplica igual: además de revisar al leer, 
 
 Mis pedidos muestra "Rechazado · Corrige antes del <día>".
 
+## Perfil del cliente
+
+Reglas de `KARSO-PROMPT-v1.md` 5.1 y 6.1, implementadas en el [SPEC 10](specs/10-perfil-del-cliente.md). "Mi perfil" (`/panel/perfil`) tiene tarjetas que se guardan por separado: el error de una no bloquea a las demás, y lo guardado se ve al momento en el resto de la app.
+
+- **Datos personales:** número de cliente, nombre y correo, **solo de lectura** (KARSO: nombre y correo no se editan).
+- **Tipo de cliente:** todos se registran como **ocasional**. Con "Soy socio (tengo un negocio)" el nombre del negocio y la dirección pasan a ser obligatorios. Por ahora ser socio no da beneficios: solo se guarda el tipo (KARSO lo deja pendiente; hay que hablarlo con el socio). Volver a ocasional borra el nombre del negocio y conserva la dirección, que para un ocasional es opcional.
+- **Dirección:** la forma de KARSO 6.1, la misma de las sucursales: calle con número, colonia, ciudad, estado y código postal de 5 dígitos.
+- **Datos fiscales:** el formulario de la [SPEC 06](#checkout-sucursal-factura-y-promociones). Se precargan al pedir factura y se pueden **borrar**; los pedidos hechos conservan su copia.
+- **Contraseña:** la nueva y su confirmación, con las reglas del registro. **No se pide la actual** (decisión del usuario: basta la sesión activa; conviene revisarlo con la SPEC 11, que trae la revocación de sesiones). Una cuenta que solo entra con Google la **crea** y desde entonces también entra con correo y contraseña.
+- **Teléfono (WhatsApp):** el número nuevo **se verifica con un código**, como en el registro (aviso de demo y `[DEMO WHATSAPP] Código para <número nuevo>` en la consola). Hasta confirmarlo, el de la cuenta sigue siendo el anterior: el número nuevo vive en `verifications.json`. Se puede reenviar (cada 60 s) o cancelar, y al recargar la página el cambio se retoma. Un código agotado cierra el cambio: hay que pedirlo otra vez. En los datos el campo sigue llamándose `whatsapp` (KARSO lo llama `telefono`).
+
 ## Archivos de la línea
 
 Reglas de `KARSO-PROMPT-v1.md` 5.7, implementadas en el [SPEC 05](specs/05-archivos-frente-reverso-y-validacion.md).
@@ -364,7 +390,7 @@ src/
 │   ├── molecules/       #   combinan átomos con una sola responsabilidad
 │   ├── organisms/       #   secciones con datos (usan hooks) o formularios completos
 │   └── templates/       #   esqueletos de página: panel y acceso
-├── hooks/               # React Query y lógica de UI: use-auth, use-pedidos, use-productos, use-banners, use-editor-item, …
+├── hooks/               # React Query y lógica de UI: use-auth, use-pedidos, use-perfil, use-productos, use-banners, use-editor-item, …
 ├── lib/                 # compartido con el front: cliente HTTP, validación (zod),
 │   ├── catalogo/        #   esquema de productos de KARSO y selectores por atributos
 │   ├── banners/         #   esquema de banners
@@ -385,7 +411,7 @@ specs/                   # specs del proyecto
 Reglas del proyecto (las hace cumplir `pnpm lint`):
 
 - **Los componentes no importan nada de `src/server`.** El front solo habla con el backend a través de `src/lib/api-client.ts`. Así, pasar del demo al backend real no toca la UI.
-- **Los datos se piden con hooks de `src/hooks/`** (TanStack React Query). Componentes y páginas no llaman a `authApi`, `pedidosApi`, `tiendaApi` ni `demoPanelApi`; solo importan sus tipos.
+- **Los datos se piden con hooks de `src/hooks/`** (TanStack React Query). Componentes y páginas no llaman a `authApi`, `pedidosApi`, `tiendaApi`, `demoPanelApi` ni `perfilApi`; solo importan sus tipos.
 - **Cada nivel de atomic design importa solo de los de abajo:** `atoms` ← `molecules` ← `organisms` ← `templates` ← páginas de `src/app`. Solo `organisms/` y `templates/` usan hooks de datos.
 - `pnpm dlx shadcn add <componente>` crea los componentes nuevos en `atoms/` (alias `ui` de `components.json`).
 
@@ -424,8 +450,9 @@ Los colores viven en tokens de `src/app/globals.css`: `:root` es el claro y `.da
 | [07](specs/07-pago-mercado-pago-emulado-y-folio-kar.md) | Pago: Mercado Pago emulado, folio `KAR-…`, estatus e historial de KARSO, `pago_pendiente` → `enviado`, vencimiento al leer; solo el admin cancela | En verificación |
 | [08](specs/08-seguimiento-estatus-por-linea-recoger-y-qr.md) | Seguimiento: estatus por línea, "disponible para recoger a partir del…" en días hábiles con corte y festivos, historial, QR y página de seguimiento, volver después del login, simulador del panel | En verificación |
 | [09](specs/09-rechazo-y-correccion-de-archivos.md) | Rechazo de un pedido enviado con motivo por línea, corrección de archivos en 5 días (sin domingos, con festivos), "Enviar corrección" y cancelación al vencer | En verificación |
-| 10 | Perfil (socio, dirección, editar datos fiscales) y sesión con access/refresh y JWKS | Pendiente |
+| [10](specs/10-perfil-del-cliente.md) | Mi perfil: tipo de cliente (socio con negocio y dirección), dirección, datos fiscales, contraseña y cambio de teléfono verificado; nombre y correo de solo lectura | En verificación |
+| 11 | Sesión con token de acceso (15 min) y de renovación (7 días, rotado y revocable), firma asimétrica y `/.well-known/jwks.json` (KARSO 2.1) | Pendiente |
 
-La hoja de ruta 04–10 sale de alinear la tienda con `KARSO-PROMPT-v1.md` (la del SPEC 02 queda reemplazada). La SPEC 06 original (checkout y pago) se dividió en checkout (06) y pago (07). El panel de administración es otro proyecto: aquí solo se simulan sus datos.
+La hoja de ruta 04–11 sale de alinear la tienda con `KARSO-PROMPT-v1.md` (la del SPEC 02 queda reemplazada). La SPEC 06 original (checkout y pago) se dividió en checkout (06) y pago (07), la 08 en seguimiento (08) y rechazo y corrección (09), y la de perfil y sesión en perfil (10) y sesión (11). El panel de administración es otro proyecto: aquí solo se simulan sus datos.
 
 Fuera del demo por ahora: recuperar contraseña, verificación de correo, envío real de códigos, OAuth real de Google, backend real (NestJS + MongoDB + Cloudflare R2), miniaturas y lectura de PDF/AI/EPS/SVG, limpieza de archivos huérfanos, notificaciones reales (correo y WhatsApp) y timbrado de factura (CFDI). La app es 100% web: no hay versión de escritorio.

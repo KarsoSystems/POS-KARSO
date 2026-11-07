@@ -371,8 +371,10 @@ test.describe("Datos de versiones anteriores", () => {
     const actual = JSON.parse(await readFile(ruta, "utf8"));
     const v1 = {
       version: 1,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      users: actual.users.map(({ datosFiscales, usosPromociones, ...user }: Record<string, unknown>) => user),
+      users: actual.users.map(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        ({ datosFiscales, usosPromociones, tipo, direccion, nombreNegocio, ...user }: Record<string, unknown>) => user,
+      ),
     };
     await writeFile(ruta, JSON.stringify(v1));
 
@@ -380,7 +382,7 @@ test.describe("Datos de versiones anteriores", () => {
     await page.goto("/panel/pedidos/nuevo");
     await expect(page.getByText("Tu pedido está vacío")).toBeVisible();
     const migrado = JSON.parse(await readFile(ruta, "utf8"));
-    expect(migrado.version).toBe(2);
+    expect(migrado.version).toBe(3);
     expect(migrado.users).toHaveLength(actual.users.length);
     expect(migrado.users.every((u: Record<string, unknown>) => Array.isArray(u.usosPromociones))).toBe(true);
   });

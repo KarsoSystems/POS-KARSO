@@ -8,20 +8,27 @@ import {
   type UserRepository,
 } from "./types";
 
-// Versión 2 (SPEC 06): datos fiscales y usos de promociones. Los usuarios no son
-// datos de prueba desechables (habría que registrarse de nuevo): la versión 1 se migra.
+// Versión 2 (SPEC 06): datos fiscales y usos de promociones. Versión 3 (SPEC 10):
+// tipo de cliente, dirección y nombre del negocio (KARSO 6.1). Los usuarios no son
+// datos de prueba desechables (habría que registrarse de nuevo): las versiones
+// anteriores se migran.
 interface UsersFile {
-  version: 2;
+  version: 3;
   users: User[];
 }
 
-type UserV1 = Omit<User, "datosFiscales" | "usosPromociones">;
+type UserV2 = Omit<User, "tipo" | "direccion" | "nombreNegocio">;
+type UserV1 = Omit<UserV2, "datosFiscales" | "usosPromociones">;
 
 export function migrarUsers(data: { version: number } & Record<string, unknown>): UsersFile {
-  if (data.version !== 1) throw new Error(`users.json: versión ${data.version} no soportada`);
+  if (data.version !== 1 && data.version !== 2) throw new Error(`users.json: versión ${data.version} no soportada`);
+  const v2: UserV2[] =
+    data.version === 1
+      ? (data.users as UserV1[]).map((user) => ({ ...user, datosFiscales: null, usosPromociones: [] }))
+      : (data.users as UserV2[]);
   return {
-    version: 2,
-    users: (data.users as UserV1[]).map((user) => ({ ...user, datosFiscales: null, usosPromociones: [] })),
+    version: 3,
+    users: v2.map((user) => ({ ...user, tipo: "ocasional", direccion: null, nombreNegocio: null })),
   };
 }
 
@@ -31,7 +38,7 @@ interface CountersFile {
 }
 
 export function createJsonUserRepository(dataDir: string = resolveDataDir()): UserRepository {
-  const users = createJsonStore<UsersFile>("users.json", { version: 2, users: [] }, dataDir, {
+  const users = createJsonStore<UsersFile>("users.json", { version: 3, users: [] }, dataDir, {
     versionDistinta: { migrar: migrarUsers },
   });
   const counters = createJsonStore<CountersFile>(
@@ -67,6 +74,9 @@ export function createJsonUserRepository(dataDir: string = resolveDataDir()): Us
           correo,
           id: randomUUID(),
           idCliente: formatIdCliente(consecutivo),
+          tipo: "ocasional",
+          direccion: null,
+          nombreNegocio: null,
           datosFiscales: null,
           usosPromociones: [],
           createdAt: now,

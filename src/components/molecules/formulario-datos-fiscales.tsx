@@ -24,6 +24,8 @@ interface FormularioDatosFiscalesProps {
   guardando?: boolean;
   /** Errores del servidor por campo (`rfc`, `regimenFiscal`, …). */
   errores?: Partial<Record<Campo, string>>;
+  /** "Guardar en mi perfil": solo en el checkout; en "Mi perfil" (SPEC 10) ya se guardan ahí. */
+  conOpcionPerfil?: boolean;
 }
 
 const VACIOS: DatosFiscalesInput = {
@@ -46,15 +48,21 @@ const iguales = (a: DatosFiscalesInput, b: DatosFiscales | null) =>
  * CFDI 4.0. Se validan igual que en el servidor antes de guardar. "Guardar en mi
  * perfil" viene marcada: así se precargan en el siguiente pedido.
  */
-export function FormularioDatosFiscales({ valor, onGuardar, guardando, errores = {} }: FormularioDatosFiscalesProps) {
+export function FormularioDatosFiscales({
+  valor,
+  onGuardar,
+  guardando,
+  errores = {},
+  conOpcionPerfil = true,
+}: FormularioDatosFiscalesProps) {
   const id = useId();
   const [campos, setCampos] = useState<DatosFiscalesInput>(valor ?? VACIOS);
   const [locales, setLocales] = useState<Partial<Record<Campo, string>>>({});
   const [enPerfil, setEnPerfil] = useState(true);
 
-  // Si los datos del borrador cambian (precarga del perfil, otra pestaña), el formulario los toma.
+  // Si los datos guardados cambian (precarga del perfil, otra pestaña, se borraron), el formulario los toma.
   useEffect(() => {
-    if (valor) setCampos(valor);
+    setCampos(valor ?? VACIOS);
   }, [valor]);
 
   const guardados = iguales(campos, valor);
@@ -169,15 +177,17 @@ export function FormularioDatosFiscales({ valor, onGuardar, guardando, errores =
         {error("correoFactura")}
       </div>
 
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          className="size-4 accent-primary"
-          checked={enPerfil}
-          onChange={(e) => setEnPerfil(e.target.checked)}
-        />
-        Guardar en mi perfil
-      </label>
+      {conOpcionPerfil && (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="size-4 accent-primary"
+            checked={enPerfil}
+            onChange={(e) => setEnPerfil(e.target.checked)}
+          />
+          Guardar en mi perfil
+        </label>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" variant="outline" disabled={guardando}>

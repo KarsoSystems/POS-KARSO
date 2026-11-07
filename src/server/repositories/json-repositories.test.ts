@@ -68,11 +68,11 @@ describe("JsonUserRepository", () => {
     expect(user.updatedAt).toBe(user.createdAt);
   });
 
-  it("persiste en users.json con versión 2, sin datos fiscales ni usos de promociones", async () => {
+  it("persiste en users.json con versión 3: ocasional, sin dirección, negocio, datos fiscales ni usos de promociones", async () => {
     const repo = createJsonUserRepository(dir);
     const user = await repo.create(nuevoUsuario("a@ejemplo.com"));
-    expect(user).toMatchObject({ datosFiscales: null, usosPromociones: [] });
-    expect(await readJson("users.json")).toEqual({ version: 2, users: [user] });
+    expect(user).toMatchObject({ tipo: "ocasional", direccion: null, nombreNegocio: null, datosFiscales: null, usosPromociones: [] });
+    expect(await readJson("users.json")).toEqual({ version: 3, users: [user] });
   });
 
   it("migra un users.json de la versión 1 sin perder usuarios", async () => {
@@ -80,13 +80,29 @@ describe("JsonUserRepository", () => {
     const anterior = createJsonUserRepository(dir);
     const user = await anterior.create(nuevoUsuario("ana@ejemplo.com"));
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { datosFiscales, usosPromociones, ...v1 } = user;
+    const { datosFiscales, usosPromociones, tipo, direccion, nombreNegocio, ...v1 } = user;
     await writeFile(path.join(dir, "users.json"), JSON.stringify({ version: 1, users: [v1] }));
 
     const repo = createJsonUserRepository(dir);
     expect(await repo.findByCorreo("ana@ejemplo.com")).toEqual(user);
-    expect(await readJson("users.json")).toEqual({ version: 2, users: [user] });
-    expect(aviso).toHaveBeenCalledWith(expect.stringMatching(/users\.json: versión 1 migrada a la versión 2/));
+    expect(await readJson("users.json")).toEqual({ version: 3, users: [user] });
+    expect(aviso).toHaveBeenCalledWith(expect.stringMatching(/users\.json: versión 1 migrada a la versión 3/));
+    aviso.mockRestore();
+  });
+
+  it("migra un users.json de la versión 2 conservando datos fiscales y usos de promociones", async () => {
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const anterior = createJsonUserRepository(dir);
+    const creado = await anterior.create(nuevoUsuario("ana@ejemplo.com"));
+    const uso = { promocionId: "p1", codigo: "KARSO10", pedidoId: "pedido-1", fecha: "2026-11-06T18:00:00Z" };
+    const user = { ...creado, usosPromociones: [uso] };
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { tipo, direccion, nombreNegocio, ...v2 } = user;
+    await writeFile(path.join(dir, "users.json"), JSON.stringify({ version: 2, users: [v2] }));
+
+    const repo = createJsonUserRepository(dir);
+    expect(await repo.findById(user.id)).toEqual(user);
+    expect(aviso).toHaveBeenCalledWith(expect.stringMatching(/users\.json: versión 2 migrada a la versión 3/));
     aviso.mockRestore();
   });
 
@@ -175,6 +191,7 @@ describe("JsonUserRepository", () => {
 describe("JsonVerificationRepository", () => {
   const verificacion = (userId: string, codigo: string): WhatsappVerification => ({
     userId,
+    whatsapp: "+528112345678",
     codigo,
     expiresAt: "2026-10-30T12:10:00.000Z",
     intentos: 0,
@@ -188,6 +205,15 @@ describe("JsonVerificationRepository", () => {
     await repo.upsert(verificacion("u2", "333333"));
     expect((await repo.findByUserId("u1"))?.codigo).toBe("222222");
     expect((await readJson("verifications.json")).items).toHaveLength(2);
+  });
+
+  it("un verifications.json de la versión 1 se descarta (códigos temporales)", async () => {
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await writeFile(path.join(dir, "verifications.json"), JSON.stringify({ version: 1, items: [{ userId: "u1", codigo: "111111" }] }));
+    const repo = createJsonVerificationRepository(dir);
+    expect(await repo.findByUserId("u1")).toBeNull();
+    expect(await readJson("verifications.json")).toEqual({ version: 2, items: [] });
+    aviso.mockRestore();
   });
 
   it("findByUserId devuelve null si no hay", async () => {

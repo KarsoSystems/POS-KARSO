@@ -65,14 +65,17 @@ test.describe("Sesión", () => {
 });
 
 test.describe("Panel", () => {
-  test("Mis pedidos está habilitado y Mi perfil aparece con 'Próximamente'", async ({ page }) => {
+  test("Mis pedidos y Mi perfil están habilitados (SPEC 10)", async ({ page }) => {
     await crearCuentaActiva(page.request);
     await page.goto("/panel");
     const menu = page.locator("aside").getByRole("navigation", { name: "Menú del panel" });
+    await expect(menu.getByText("Próximamente")).toHaveCount(0);
 
-    const perfil = menu.getByRole("link", { name: /Mi perfil/ });
-    await expect(perfil).toHaveAttribute("aria-disabled", "true");
-    await expect(perfil).toContainText("Próximamente");
+    const perfil = menu.getByRole("link", { name: "Mi perfil" });
+    await expect(perfil).not.toHaveAttribute("aria-disabled");
+    await perfil.click();
+    await expect(page).toHaveURL(/\/panel\/perfil$/);
+    await expect(perfil).toHaveAttribute("aria-current", "page");
 
     const pedidos = menu.getByRole("link", { name: "Mis pedidos" });
     await expect(pedidos).not.toHaveAttribute("aria-disabled");
@@ -104,6 +107,6 @@ test.describe("375 px", () => {
     // Debajo de 768 px el menú vive en un drawer.
     await expect(page.locator("aside")).toBeHidden();
     await page.getByRole("button", { name: "Abrir menú" }).click();
-    await expect(page.getByRole("dialog").getByText("Próximamente").first()).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("link", { name: "Mi perfil" })).toBeVisible();
   });
 });

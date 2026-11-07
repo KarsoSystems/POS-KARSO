@@ -1,6 +1,10 @@
+import type { Direccion } from "@/lib/sucursales/schema";
 import type { DatosFiscales } from "@/lib/validation/fiscal";
 
-export type { DatosFiscales };
+export type { DatosFiscales, Direccion };
+
+/** KARSO 5.1: el socio tiene un negocio (dirección y nombre del negocio obligatorios). */
+export type TipoCliente = "ocasional" | "socio";
 
 export type AuthProvider = "password" | "google";
 
@@ -22,6 +26,9 @@ export interface User {
   whatsappVerificado: boolean;
   correoVerificado: boolean; // true si entró con Google; false en registro por correo
   estado: EstadoCuenta;
+  tipo: TipoCliente; // "ocasional" al registrarse; el cliente lo cambia en su perfil (SPEC 10)
+  direccion: Direccion | null; // KARSO 6.1: obligatoria para socio, opcional para ocasional
+  nombreNegocio: string | null; // obligatorio para socio; null para ocasional
   datosFiscales: DatosFiscales | null; // se precargan en el borrador al pedir factura (SPEC 06)
   usosPromociones: UsoPromocion[]; // provisional, mientras el backend define su colección (SPEC 06)
   createdAt: string; // ISO 8601
@@ -36,8 +43,11 @@ export interface UsoPromocion {
   fecha: string; // al hacer el pedido
 }
 
-/** Datos para crear un usuario; el repositorio asigna id, idCliente, fechas, datos fiscales y usos. */
-export type NewUser = Omit<User, "id" | "idCliente" | "createdAt" | "updatedAt" | "datosFiscales" | "usosPromociones">;
+/** Datos para crear un usuario; el repositorio asigna id, idCliente, fechas, datos del perfil y usos. */
+export type NewUser = Omit<
+  User,
+  "id" | "idCliente" | "createdAt" | "updatedAt" | "tipo" | "direccion" | "nombreNegocio" | "datosFiscales" | "usosPromociones"
+>;
 
 /** Campos que no se pueden cambiar después de crear el usuario. */
 export type ImmutableUserField = "id" | "idCliente" | "createdAt";

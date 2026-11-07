@@ -9,18 +9,21 @@ export const REENVIO_COOLDOWN_MS = 60 * 1000; // 60 s
 /**
  * Genera y guarda un código nuevo de 6 dígitos para el usuario y lo "envía"
  * a la consola del servidor. Devuelve el código (para el aviso de demo).
+ * `whatsapp` es el número al que se envía: el del usuario (registro) o uno nuevo
+ * que quiere poner en su perfil (SPEC 10).
  */
-export async function issueWhatsappCode(user: User): Promise<string> {
+export async function issueWhatsappCode(user: User, whatsapp: string = user.whatsapp ?? ""): Promise<string> {
   const codigo = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const now = Date.now();
   await verificationRepository.upsert({
     userId: user.id,
+    whatsapp,
     codigo,
     expiresAt: new Date(now + CODIGO_VIGENCIA_MS).toISOString(),
     intentos: 0,
     ultimoEnvio: new Date(now).toISOString(),
   });
-  console.log(`[DEMO WHATSAPP] Código para ${user.whatsapp} (${user.idCliente}): ${codigo}`);
+  console.log(`[DEMO WHATSAPP] Código para ${whatsapp} (${user.idCliente}): ${codigo}`);
   return codigo;
 }
 

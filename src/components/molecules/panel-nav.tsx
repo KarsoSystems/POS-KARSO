@@ -13,11 +13,11 @@ interface NavItem {
   proximamente?: boolean;
 }
 
-// "Mi perfil" llega en un spec futuro.
+// `proximamente` marca una sección que aún no existe (se muestra deshabilitada).
 const ITEMS: NavItem[] = [
   { label: "Inicio", href: "/panel", icon: Home },
   { label: "Mis pedidos", href: "/panel/pedidos", icon: Package },
-  { label: "Mi perfil", href: "/panel/perfil", icon: UserRound, proximamente: true },
+  { label: "Mi perfil", href: "/panel/perfil", icon: UserRound },
 ];
 
 const itemClass =

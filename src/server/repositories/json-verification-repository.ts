@@ -2,8 +2,10 @@ import type { WhatsappVerification } from "@/server/domain/verification";
 import { createJsonStore, resolveDataDir } from "@/server/storage/json-store";
 import type { VerificationRepository } from "./types";
 
+// Versión 2 (SPEC 10): cada código guarda el número al que se envió. Un archivo
+// anterior se descarta: los códigos duran 10 minutos.
 interface VerificationsFile {
-  version: 1;
+  version: 2;
   items: WhatsappVerification[];
 }
 
@@ -12,8 +14,9 @@ export function createJsonVerificationRepository(
 ): VerificationRepository {
   const store = createJsonStore<VerificationsFile>(
     "verifications.json",
-    { version: 1, items: [] },
+    { version: 2, items: [] },
     dataDir,
+    { versionDistinta: "descartar" },
   );
 
   return {
