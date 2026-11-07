@@ -306,7 +306,7 @@ test.describe("Borrador", () => {
 
     await page.goto("/panel/pedidos/nuevo");
     await expect(page.getByText("Tu pedido está vacío")).toBeVisible();
-    expect(await leerOrders()).toMatchObject({ version: 5 });
+    expect(await leerOrders()).toMatchObject({ version: 6 });
     // Deja los contadores como estaban para que los folios de otros tests sigan la secuencia.
     await escribirOrders({ ...(await leerOrders()), contadores });
   });
@@ -330,7 +330,7 @@ test.describe("Hacer pedido, pago y detalle", () => {
     await expect(page.getByTestId("total-a-pagar")).toHaveText("$310.00");
     await page.getByRole("button", { name: "Aprobar" }).click();
     await expect(page).toHaveURL(/\/panel\/pedidos\/[\w-]+\?pago=aprobado$/);
-    await expect(page.getByText("Pago aprobado")).toBeVisible();
+    await expect(page.getByText("Pago aprobado", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: new RegExp(esperado) })).toContainText("Enviado");
     await expect(page.getByTestId("pago-aprobado")).toContainText(/Pagado el .+ · Ref\. \d{10}/);
     await expect(page.getByTestId("total-pedido")).toHaveText("$310.00");

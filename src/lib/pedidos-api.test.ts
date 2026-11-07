@@ -78,6 +78,7 @@ describe("pedidosApi", () => {
     ["listar", () => pedidosApi.listar(), "GET", "/api/pedidos"],
     ["detalle", () => pedidosApi.detalle("p1"), "GET", "/api/pedidos/p1"],
     ["pagarSimulado", () => pedidosApi.pagarSimulado("p1", "aprobado"), "POST", "/api/pedidos/p1/pago-simulado"],
+    ["porFolio", () => pedidosApi.porFolio("KAR-2026-000001"), "GET", "/api/pedidos/folio/KAR-2026-000001"],
   ])("%s → %s %s", async (_, call, method, path) => {
     fetchMock.mockResolvedValue(jsonResponse(200, {}));
     await call();

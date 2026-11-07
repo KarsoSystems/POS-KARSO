@@ -13,12 +13,13 @@ import {
 
 // El contador de folios vive en el mismo archivo que los pedidos: así el folio
 // se asigna bajo el mismo lock que la confirmación y no se gastan en borradores.
-// Versión 5 = líneas de KARSO (SPEC 04) con frente y reverso (SPEC 05), sucursal,
-// factura y promociones (SPEC 06), estatus, historial, pagos y folio KAR (SPEC 07);
-// un archivo de una versión anterior se descarta: eran datos de prueba del demo.
+// Versión 6 = líneas de KARSO (SPEC 04) con frente y reverso (SPEC 05), sucursal,
+// factura y promociones (SPEC 06), estatus, historial, pagos y folio KAR (SPEC 07),
+// estatus por línea, fechas de entrega y QR (SPEC 08); un archivo de una versión
+// anterior se descarta: eran datos de prueba del demo.
 // `contadores` sigue a KARSO 6.10: un consecutivo por año, "pedidos-2026".
 interface OrdersFile {
-  version: 5;
+  version: 6;
   contadores: Record<string, number>;
   pedidos: Pedido[];
 }
@@ -33,7 +34,7 @@ async function aplicar(pedido: Pedido, cambiar: CambiarPedido): Promise<void> {
 export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): PedidoRepository {
   const store = createJsonStore<OrdersFile>(
     "orders.json",
-    { version: 5, contadores: {}, pedidos: [] },
+    { version: 6, contadores: {}, pedidos: [] },
     dataDir,
     { versionDistinta: "descartar" },
   );
@@ -75,6 +76,9 @@ export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): 
           pagado: 0,
           saldo: 0,
           cancelacion: null,
+          fechaInicioConteo: null,
+          fechaEntregaEstimada: null,
+          qr: null,
           createdAt: now,
           updatedAt: now,
           confirmadoAt: null,
@@ -87,6 +91,12 @@ export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): 
     async findById(id) {
       const data = await store.read();
       return data.pedidos.find((p) => p.id === id) ?? null;
+    },
+
+    async listAll() {
+      const data = await store.read();
+      const fecha = (p: Pedido) => p.confirmadoAt ?? p.createdAt;
+      return data.pedidos.filter((p) => p.estatus !== "borrador").sort((a, b) => fecha(b).localeCompare(fecha(a)));
     },
 
     async listByUser(userId) {
@@ -117,6 +127,7 @@ export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): 
         // Si `cambiar` lanzó, no se llega aquí y el folio no se consume.
         data.contadores[contador] = consecutivo;
         pedido.folio = folio;
+        pedido.qr = folio; // KARSO 6.5: el QR lleva el folio
         pedido.estatus = "pago_pendiente";
         pedido.confirmadoAt = pedido.updatedAt;
         pedido.vencimientoPago = vencimientoPago(pedido.confirmadoAt, horasPago);

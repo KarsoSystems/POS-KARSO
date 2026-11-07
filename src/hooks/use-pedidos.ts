@@ -23,6 +23,11 @@ export function usePedido(id: string) {
   return useQuery({ queryKey: queryKeys.pedido(id), queryFn: () => pedidosApi.detalle(id) });
 }
 
+/** El pedido del usuario con ese folio (la página de seguimiento que abre el QR). */
+export function usePedidoPorFolio(folio: string) {
+  return useQuery({ queryKey: queryKeys.pedidoPorFolio(folio), queryFn: () => pedidosApi.porFolio(folio), retry: false });
+}
+
 /** Las mutaciones del borrador responden con el borrador recalculado: se escribe en la caché sin volver a pedirlo. */
 function useMutacionBorrador<V>(mutationFn: (variables: V) => Promise<PedidoResponse>) {
   const queryClient = useQueryClient();

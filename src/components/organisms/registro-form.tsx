@@ -19,9 +19,11 @@ import { Input } from "@/components/atoms/input";
 import { useRegistro } from "@/hooks/use-auth";
 import { guardarDemoCodigo } from "@/lib/demo-codigo";
 import { applyApiError } from "@/lib/forms";
+import { conSiguiente } from "@/lib/auth-routes";
 import { registroSchema, type RegistroData, type RegistroInput } from "@/lib/validation/auth";
 
-export function RegistroForm() {
+/** `siguiente`: la página del panel a la que volver al terminar (SPEC 08), ya validada por la página. */
+export function RegistroForm({ siguiente = null }: { siguiente?: string | null }) {
   const router = useRouter();
   const registro = useRegistro();
   const form = useForm<RegistroInput, unknown, RegistroData>({
@@ -40,7 +42,7 @@ export function RegistroForm() {
     try {
       const { demoCodigo } = await registro.mutateAsync(values);
       guardarDemoCodigo(demoCodigo);
-      router.replace("/registro/verificar");
+      router.replace(conSiguiente("/registro/verificar", siguiente));
     } catch (error) {
       applyApiError(form, error);
     }
@@ -149,7 +151,7 @@ export function RegistroForm() {
 
         <p className="text-center text-sm text-muted-foreground">
           ¿Ya tienes cuenta?{" "}
-          <Link href="/login" className="font-medium text-foreground underline underline-offset-4">
+          <Link href={conSiguiente("/login", siguiente)} className="font-medium text-foreground underline underline-offset-4">
             Inicia sesión
           </Link>
         </p>

@@ -57,9 +57,11 @@ export interface PedidoGuardado {
   pagos: { estatus: string; monto: number; referencia: string }[];
   pagado: number;
   saldo: number;
+  fechaEntregaEstimada: string | null;
+  historialEstatus: { estatus: string; por: string; comentario: string }[];
 }
 
-/** Contenido de orders.json del servidor de e2e (versión 5: `contadores` por año, como KARSO 6.10). */
+/** Contenido de orders.json del servidor de e2e (versión 6; `contadores` por año, como KARSO 6.10). */
 export async function leerOrders(): Promise<{
   version: number;
   contadores: Record<string, number>;
@@ -68,7 +70,7 @@ export async function leerOrders(): Promise<{
   try {
     return JSON.parse(await readFile(path.join(DATA_DIR, "orders.json"), "utf8"));
   } catch {
-    return { version: 5, contadores: {}, pedidos: [] };
+    return { version: 6, contadores: {}, pedidos: [] };
   }
 }
 

@@ -192,7 +192,7 @@ describe("GET /api/pedidos/borrador", () => {
     errorSpy.mockRestore();
   });
 
-  it("un orders.json de la SPEC 02 (versión 1) se descarta sin romper y se reinicia en la versión 5", async () => {
+  it("un orders.json de la SPEC 02 (versión 1) se descarta sin romper y se reinicia en la versión 6", async () => {
     await iniciarSesionActiva();
     const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
     await mkdir(env.dataDir, { recursive: true });
@@ -203,7 +203,7 @@ describe("GET /api/pedidos/borrador", () => {
     const res = await getBorrador();
     expect(res.status).toBe(200);
     expect((await res.json()).pedido.productos).toEqual([]);
-    expect(await readJson("orders.json")).toMatchObject({ version: 5, contadores: {} });
+    expect(await readJson("orders.json")).toMatchObject({ version: 6, contadores: {} });
     aviso.mockRestore();
   });
 });
@@ -248,6 +248,9 @@ describe("POST /api/pedidos/borrador/items", () => {
       importeUnitario: 155,
       subtotal: 310,
       problema: null,
+      estatus: null,
+      fechaEntregaEstimada: null,
+      loteId: null,
     });
     expect(pedido.productos[0].lineaId).toEqual(expect.any(String));
     expect(pedido).toMatchObject({ subtotal: 310, descuento: 0, baseIva: 310, tasaIva: 0, iva: 0, total: 310 });

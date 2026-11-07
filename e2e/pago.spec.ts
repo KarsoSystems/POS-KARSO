@@ -161,7 +161,7 @@ test.describe("Vencimiento del pago", () => {
     await expect(page.getByRole("link", { name: new RegExp(pedido.folio) })).toContainText("Cancelado");
     await page.goto(`/panel/pedidos/${pedido.id}`);
     await expect(page.getByRole("heading", { name: new RegExp(pedido.folio) })).toContainText("Cancelado");
-    await expect(page.getByText("Pago no recibido en 24 h")).toBeVisible();
+    await expect(page.getByText("Pago no recibido en 24 h").first()).toBeVisible();
     await expect(pagarEnDetalle(page)).toHaveCount(0);
 
     const res = await pagarPorApi(page.request, pedido.id);
@@ -215,7 +215,7 @@ test.describe("Datos de versiones anteriores", () => {
 
     await page.goto("/panel/pedidos");
     await expect(page.getByText("Aún no tienes pedidos")).toBeVisible();
-    expect(await leerOrders()).toMatchObject({ version: 5 });
+    expect(await leerOrders()).toMatchObject({ version: 6 });
     // Deja los contadores como estaban para que los folios de otros tests sigan la secuencia.
     await escribirOrders({ ...(await leerOrders()), contadores });
   });

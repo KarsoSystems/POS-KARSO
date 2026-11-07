@@ -320,7 +320,7 @@ test.describe("Totales de KARSO 5.4", () => {
     await hacerPedido(page).click();
     await expect(page.getByTestId("total-a-pagar")).toHaveText("$755.86");
     await page.getByRole("button", { name: "Aprobar" }).click();
-    await expect(page.getByText("Pago aprobado")).toBeVisible();
+    await expect(page.getByText("Pago aprobado", { exact: true })).toBeVisible();
     const resumen = page.getByTestId("total-pedido").locator("xpath=ancestor::dl");
     await expect(resumen).toContainText("Subtotal$724.00");
     await expect(resumen).toContainText("BUENFIN10 (10 %)−$72.40");
@@ -360,7 +360,7 @@ test.describe("Datos de versiones anteriores", () => {
 
     await page.goto("/panel/pedidos/nuevo");
     await expect(page.getByText("Tu pedido está vacío")).toBeVisible();
-    expect(await leerOrders()).toMatchObject({ version: 5 });
+    expect(await leerOrders()).toMatchObject({ version: 6 });
     // Deja los contadores como estaban para que los folios de otros tests sigan la secuencia.
     await escribirOrders({ ...(await leerOrders()), contadores });
   });

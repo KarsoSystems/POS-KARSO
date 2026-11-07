@@ -16,11 +16,12 @@ import {
 } from "@/components/atoms/form";
 import { Input } from "@/components/atoms/input";
 import { useLogin } from "@/hooks/use-auth";
-import { rutaParaEstado } from "@/lib/auth-routes";
+import { conSiguiente, destinoPara } from "@/lib/auth-routes";
 import { applyApiError } from "@/lib/forms";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
 
-export function LoginForm() {
+/** `siguiente`: la página del panel a la que volver al terminar (SPEC 08), ya validada por la página. */
+export function LoginForm({ siguiente = null }: { siguiente?: string | null }) {
   const router = useRouter();
   const login = useLogin();
   const form = useForm<LoginInput>({
@@ -31,7 +32,7 @@ export function LoginForm() {
   async function onSubmit(values: LoginInput) {
     try {
       const { user } = await login.mutateAsync(values);
-      router.replace(rutaParaEstado(user.estado));
+      router.replace(destinoPara(user.estado, siguiente));
     } catch (error) {
       applyApiError(form, error);
     }
@@ -76,7 +77,7 @@ export function LoginForm() {
 
         <p className="text-center text-sm text-muted-foreground">
           ¿No tienes cuenta?{" "}
-          <Link href="/registro" className="font-medium text-foreground underline underline-offset-4">
+          <Link href={conSiguiente("/registro", siguiente)} className="font-medium text-foreground underline underline-offset-4">
             Regístrate
           </Link>
         </p>

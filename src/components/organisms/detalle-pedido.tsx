@@ -4,14 +4,16 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, CreditCard, FileText, Ma
 import Link from "next/link";
 import { FormError } from "@/components/atoms/form-error";
 import { EstadoBadge } from "@/components/atoms/estado-badge";
+import { HistorialEstatus } from "@/components/molecules/historial-estatus";
 import { ItemResumen } from "@/components/molecules/item-resumen";
+import { QrSeguimiento } from "@/components/molecules/qr-seguimiento";
 import { TotalesPedido } from "@/components/molecules/totales-pedido";
 import { Alert, AlertDescription, AlertTitle } from "@/components/atoms/alert";
 import { Button } from "@/components/atoms/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
 import { Skeleton } from "@/components/atoms/skeleton";
 import { ApiError } from "@/lib/api-client";
-import { formatearFechaHora, formatearMxn } from "@/lib/pedidos/formato";
+import { formatearDia, formatearFechaHora, formatearMxn, textoDiasHabiles } from "@/lib/pedidos/formato";
 import type { Pedido } from "@/lib/pedidos-api";
 import { REGIMENES_FISCALES, USOS_CFDI } from "@/lib/validation/fiscal";
 import { usePedido } from "@/hooks/use-pedidos";
@@ -19,7 +21,26 @@ import { usePedido } from "@/hooks/use-pedidos";
 const mensajeDe = (error: unknown, porDefecto: string) => (error instanceof ApiError ? error.message : porDefecto);
 
 /** Dónde recoge el cliente: la copia de la sucursal que guardó el pedido al hacerse. */
-function Entrega({ sucursal }: { sucursal: Pedido["sucursalEntrega"] }) {
+/** Cuándo puede recoger (KARSO 5.9): la fecha desde que se valida; antes, los días hábiles. */
+function Disponibilidad({ pedido }: { pedido: Pedido }) {
+  if (pedido.estatus === "cancelado" || pedido.estatus === "entregado") return null;
+  if (pedido.fechaEntregaEstimada) {
+    return (
+      <p className="rounded-md bg-accent/40 p-2 font-medium" data-testid="disponible-pedido">
+        Disponible para recoger a partir del {formatearDia(pedido.fechaEntregaEstimada)}
+      </p>
+    );
+  }
+  const dias = Math.max(0, ...pedido.productos.map((l) => l.diasEntrega));
+  return (
+    <p className="text-muted-foreground" data-testid="disponible-pedido">
+      Estará listo {textoDiasHabiles(dias)} después de que validemos tus archivos.
+    </p>
+  );
+}
+
+function Entrega({ pedido }: { pedido: Pedido }) {
+  const sucursal = pedido.sucursalEntrega;
   return (
     <Card>
       <CardHeader>
@@ -29,6 +50,7 @@ function Entrega({ sucursal }: { sucursal: Pedido["sucursalEntrega"] }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-1 text-sm">
+        <Disponibilidad pedido={pedido} />
         {sucursal ? (
           <>
             <p className="font-medium">{sucursal.nombre}</p>
@@ -223,16 +245,33 @@ export function DetallePedido({ id, resultadoPago }: { id: string; resultadoPago
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-            <section aria-label="Ítems del pedido">
-              <ul className="space-y-3">
-                {pedido.productos.map((linea) => (
-                  <ItemResumen key={linea.lineaId} linea={linea} archivos={datos.archivos} />
-                ))}
-              </ul>
-            </section>
+            <div className="min-w-0 space-y-6">
+              <section aria-label="Ítems del pedido">
+                <ul className="space-y-3">
+                  {pedido.productos.map((linea) => (
+                    <ItemResumen key={linea.lineaId} linea={linea} archivos={datos.archivos} />
+                  ))}
+                </ul>
+              </section>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Seguimiento</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <HistorialEstatus historial={pedido.historialEstatus} />
+                </CardContent>
+              </Card>
+            </div>
 
             <div className="min-w-0 space-y-4">
-              <Entrega sucursal={pedido.sucursalEntrega} />
+              {pedido.qr && (
+                <Card>
+                  <CardContent className="flex justify-center py-4">
+                    <QrSeguimiento folio={pedido.qr} grande={pedido.estatus === "listo"} />
+                  </CardContent>
+                </Card>
+              )}
+              <Entrega pedido={pedido} />
               {pedido.requiereFactura && pedido.datosFiscales && <Factura datos={pedido.datosFiscales} />}
               <Card>
                 <CardHeader>

@@ -27,13 +27,13 @@ const folio = (n: number) => formatFolio(ANIO, n);
 const contador = async () => (await readOrders()).contadores[`pedidos-${ANIO}`] ?? 0;
 
 describe("orders.json de versiones anteriores", () => {
-  it.each([1, 2, 3, 4])("un archivo de versión %i se descarta y se reinicia vacío en la versión 5", async (version) => {
+  it.each([1, 2, 3, 4, 5])("un archivo de versión %i se descarta y se reinicia vacío en la versión 6", async (version) => {
     const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
     const v1 = { version, ultimoFolio: 3, pedidos: [{ id: "viejo", userId: "u1", estado: "borrador", items: [] }] };
     await writeFile(path.join(dir, "orders.json"), JSON.stringify(v1));
 
     expect(await repo.findBorrador("u1")).toBeNull();
-    expect(await readOrders()).toEqual({ version: 5, contadores: {}, pedidos: [] });
+    expect(await readOrders()).toEqual({ version: 6, contadores: {}, pedidos: [] });
     expect(aviso).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`orders\\.json: versión ${version} descartada`)));
     aviso.mockRestore();
   });
@@ -59,10 +59,13 @@ describe("borrador", () => {
       pagado: 0,
       saldo: 0,
       cancelacion: null,
+      fechaInicioConteo: null,
+      fechaEntregaEstimada: null,
+      qr: null,
       confirmadoAt: null,
     });
     expect(await repo.findBorrador("u1")).toEqual(pedido);
-    expect(await readOrders()).toEqual({ version: 5, contadores: {}, pedidos: [pedido] });
+    expect(await readOrders()).toEqual({ version: 6, contadores: {}, pedidos: [pedido] });
   });
 
   it("findBorrador devuelve null si el usuario no tiene", async () => {
@@ -140,7 +143,7 @@ describe("confirmar", () => {
   it("asigna KAR-<año>-000001, pasa a pago_pendiente y fija confirmadoAt", async () => {
     const borrador = await repo.crearBorrador("u1");
     const pedido = await repo.confirmar(borrador.id);
-    expect(pedido).toMatchObject({ folio: `KAR-${ANIO}-000001`, estatus: "pago_pendiente" });
+    expect(pedido).toMatchObject({ folio: `KAR-${ANIO}-000001`, qr: `KAR-${ANIO}-000001`, estatus: "pago_pendiente" });
     expect(pedido.confirmadoAt).toBe(pedido.updatedAt);
     expect(await contador()).toBe(1);
   });
@@ -218,6 +221,15 @@ describe("confirmar", () => {
     const folios = confirmados.map((p) => p.folio).sort();
     expect(folios).toEqual(Array.from({ length: 8 }, (_, i) => folio(i + 1)));
     expect(await contador()).toBe(8);
+  });
+});
+
+describe("listAll", () => {
+  it("todos los pedidos de todos los usuarios, sin borradores, recientes primero", async () => {
+    const primero = await repo.confirmar((await repo.crearBorrador("u1")).id);
+    const segundo = await repo.confirmar((await repo.crearBorrador("u2")).id);
+    await repo.crearBorrador("u3");
+    expect((await repo.listAll()).map((p) => p.id)).toEqual([segundo.id, primero.id]);
   });
 });
 

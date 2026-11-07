@@ -1,5 +1,6 @@
 "use client";
 
+import { destinoPara } from "@/lib/auth-routes";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -25,7 +26,8 @@ function formatearWhatsapp(whatsapp: string | null): string {
   return m ? `+52 ${m[1]} ${m[2]} ${m[3]}` : (whatsapp ?? "");
 }
 
-export function VerificarWhatsappForm() {
+/** `siguiente`: la página del panel a la que volver al terminar (SPEC 08), ya validada por la página. */
+export function VerificarWhatsappForm({ siguiente = null }: { siguiente?: string | null }) {
   const router = useRouter();
   const [codigoDemo, setCodigoDemo] = useState<string | null>(null);
   // El código se acaba de enviar al llegar aquí: el reenvío arranca bloqueado.
@@ -51,7 +53,7 @@ export function VerificarWhatsappForm() {
     try {
       await verificarWhatsapp.mutateAsync(values);
       guardarDemoCodigo(undefined);
-      router.replace("/panel");
+      router.replace(destinoPara("activo", siguiente));
     } catch (error) {
       if (error instanceof ApiError && (error.status === 401 || error.status === 409)) {
         return redirigirSegunEstado();

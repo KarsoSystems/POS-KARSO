@@ -6,4 +6,6 @@ export const queryKeys = {
   borrador: ["pedidos", "borrador"],
   pedidos: ["pedidos", "lista"],
   pedido: (id: string) => ["pedidos", "detalle", id],
+  pedidoPorFolio: (folio: string) => ["pedidos", "folio", folio],
+  demoPanel: ["demo-panel", "pedidos"],
 } as const;

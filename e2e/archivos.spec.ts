@@ -400,7 +400,7 @@ test.describe("Hacer pedido con advertencias", () => {
     await expect(page.getByRole("button", { name: "Hacer pedido" })).toBeEnabled();
     await page.getByRole("button", { name: "Hacer pedido" }).click();
     await page.getByRole("button", { name: "Aprobar" }).click();
-    await expect(page.getByText("Pago aprobado")).toBeVisible();
+    await expect(page.getByText("Pago aprobado", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: new RegExp(folio) })).toBeVisible();
     await expect(page.getByText("Podría ser rechazado", { exact: true })).toBeVisible();
     expect(await miniaturasCargadas(page)).toBe(2);
@@ -433,7 +433,7 @@ test.describe("Datos de versiones anteriores", () => {
 
     await page.goto("/panel/pedidos/nuevo");
     await expect(page.getByText("Tu pedido está vacío")).toBeVisible();
-    expect(await leerOrders()).toMatchObject({ version: 5 });
+    expect(await leerOrders()).toMatchObject({ version: 6 });
     expect((await page.request.get("/api/archivos/viejo")).status()).toBe(404);
     // Deja los contadores como estaban para que los folios de otros tests sigan la secuencia.
     await escribirOrders({ ...(await leerOrders()), contadores });
@@ -465,7 +465,7 @@ test.describe("375 px", () => {
 
     const pedido = await confirmarPorApi(page.request);
     await page.goto(`/panel/pedidos/${pedido.id}`);
-    await expect(page.getByText("Pago pendiente")).toBeVisible();
+    await expect(page.getByRole("heading", { name: new RegExp(pedido.folio) })).toContainText("Pago pendiente");
     await sinScrollHorizontal(page);
   });
 });

@@ -1,4 +1,5 @@
 import type { Totales } from "@/lib/pedidos/cotizacion";
+import type { EstatusLinea } from "@/lib/pedidos/entrega";
 import type { EstatusPedido } from "@/lib/pedidos/formato";
 import type { LineaConArchivos } from "@/lib/pedidos/linea";
 import type { Direccion } from "@/lib/sucursales/schema";
@@ -6,7 +7,7 @@ import type { DatosFiscales } from "@/lib/validation/fiscal";
 
 // EstatusPedido, Totales y LineaCotizada viven en src/lib porque el front los usa
 // (cotización en vivo, etiquetas); se re-exportan aquí como dominio.
-export type { EstatusPedido, Totales };
+export type { EstatusLinea, EstatusPedido, Totales };
 export type { EspecificacionLinea, MedidaLinea } from "@/lib/pedidos/cotizacion";
 export type { Advertencia, ArchivoLinea, ArchivosLinea, ReversoLinea } from "@/lib/pedidos/archivo-linea";
 
@@ -19,6 +20,9 @@ export interface LineaPedido extends LineaConArchivos {
   // archivos: { frente, reverso } con los datos y advertencias de cada cara (SPEC 05)
   descripcion: string; // 0–500 caracteres
   problema: string | null; // propio del demo, p. ej. "Couché 8.7 x 5 cm ya no está disponible"
+  estatus: EstatusLinea | null; // KARSO 5.8: null hasta que se valida el pedido (SPEC 08)
+  fechaEntregaEstimada: string | null; // "YYYY-MM-DD", al pasar a recibido
+  loteId: string | null; // lo asigna el armado (panel); siempre null en la tienda
 }
 
 /** Copia de la sucursal al elegirla: el pedido conserva lo que vio el cliente aunque el panel la cambie. */
@@ -83,6 +87,9 @@ export interface Pedido extends Totales {
   pagado: number; // suma de los pagos aprobados, en pesos
   saldo: number; // total − pagado
   cancelacion: Cancelacion | null;
+  fechaInicioConteo: string | null; // KARSO 5.9: ISO, al pasar a recibido (SPEC 08)
+  fechaEntregaEstimada: string | null; // "YYYY-MM-DD", la más tardía de las líneas: "disponible para recoger a partir del…"
+  qr: string | null; // el folio, como KARSO; el enlace de seguimiento lo arma el front
   createdAt: string; // ISO 8601
   updatedAt: string;
   confirmadoAt: string | null;

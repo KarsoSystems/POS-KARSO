@@ -1,10 +1,11 @@
 import { AlertTriangle, CalendarDays, Type } from "lucide-react";
+import { EstadoBadge } from "@/components/atoms/estado-badge";
 import { AdvertenciasArchivo } from "@/components/molecules/advertencias-archivo";
 import { CotizacionLinea } from "@/components/molecules/cotizacion-linea";
 import { InsigniaRechazo } from "@/components/molecules/insignia-rechazo";
 import { MiniaturaArchivo } from "@/components/molecules/miniatura-archivo";
 import { etiquetaAtributo } from "@/lib/catalogo/atributos";
-import { textoMedida, textoReverso } from "@/lib/pedidos/formato";
+import { formatearDia, textoMedida, textoReverso } from "@/lib/pedidos/formato";
 import type { LineaPedido, PublicArchivo } from "@/lib/pedidos-api";
 import { cn } from "@/lib/utils";
 
@@ -86,7 +87,16 @@ export function ItemResumen({ linea, archivos, acciones, children, className }: 
               <p className="font-medium">
                 {linea.nombre} · {linea.variante}
               </p>
-              <InsigniaRechazo visible={advertencias.length > 0} />
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Estatus de producción de la línea (KARSO 5.8), desde que se valida el pedido. */}
+                {linea.estatus && <EstadoBadge estatus={linea.estatus} />}
+                <InsigniaRechazo visible={advertencias.length > 0} />
+              </div>
+              {linea.fechaEntregaEstimada && (
+                <p className="text-sm text-muted-foreground" data-testid="disponible-linea">
+                  Lista a partir del {formatearDia(linea.fechaEntregaEstimada)}
+                </p>
+              )}
             </div>
             {acciones && <div className="flex shrink-0 gap-1">{acciones}</div>}
           </div>

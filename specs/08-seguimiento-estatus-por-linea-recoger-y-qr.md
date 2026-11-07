@@ -51,6 +51,11 @@ La descripción original incluía también el rechazo y la corrección de archiv
   - lleva el enlace a `/panel/seguimiento/<folio>`, que pide sesión de **su dueño** y muestra la traza;
   - el folio va en el enlace, así que mostrador lo puede leer al escanearlo;
   - se dibuja en el navegador con la librería `qrcode`.
+- **Volver después del login** (agregado durante la implementación, decisión del usuario):
+  - si alguien abre una página del panel sin sesión (por ejemplo, el QR), el middleware lo manda a `/login?siguiente=<ruta>`;
+  - al iniciar sesión, con correo o con Google, va a esa ruta en lugar del inicio del panel;
+  - si todavía tiene que completar su perfil o verificar su WhatsApp, la ruta se conserva y se usa al terminar;
+  - `siguiente` solo acepta rutas internas que empiecen con `/panel/`; cualquier otra (`https://…`, `//…`) se ignora, para evitar una redirección abierta.
 - **Simulador del panel** (`/demo/panel` y `/api/demo-panel/...`), que solo existe con `DEMO_PANEL=1`:
   - lista todos los pedidos de todos los clientes, con folio, cliente, estatus, saldo y líneas;
   - **Validar** (`enviado` → `recibido`): las líneas pasan a `recibido` y se calculan las fechas;
@@ -187,8 +192,13 @@ Las rutas `demo-panel` no piden sesión de cliente. Si `DEMO_PANEL` no vale `1`,
    - **`/panel/seguimiento/[folio]`:** carga el pedido por folio y muestra el detalle; si no es del usuario, "Pedido no encontrado".
    - Se suma la dependencia `qrcode` con versión exacta.
 6. **Pantalla del simulador** (`/demo/panel`): lista de pedidos con sus acciones y su resultado, solo con `DEMO_PANEL=1`.
-7. **E2E.** Se agrega `e2e/seguimiento.spec.ts`: el servidor de e2e arranca con `DEMO_PANEL=1`. Se ajustan las suites existentes si hace falta.
-8. **Documentación.** El README suma:
+7. **Volver después del login.**
+   - `siguienteSeguro(ruta)`, pura y con tests: acepta `/panel/...` y rechaza rutas externas, `//…`, `/login` y vacías.
+   - El middleware agrega `?siguiente=` al mandar a `/login`.
+   - El login con correo y con Google redirige a `siguiente` cuando la cuenta está activa.
+   - El registro, completar el perfil y verificar el WhatsApp la conservan hasta el final.
+8. **E2E.** Se agrega `e2e/seguimiento.spec.ts`: el servidor de e2e arranca con `DEMO_PANEL=1`. Incluye abrir el QR sin sesión, iniciar sesión y llegar al pedido. Se ajustan las suites existentes si hace falta.
+9. **Documentación.** El README suma:
    - los estatus por línea y su cálculo;
    - los días hábiles y "disponible para recoger";
    - el QR y la página de seguimiento;
@@ -209,7 +219,8 @@ Las rutas `demo-panel` no piden sesión de cliente. Si `DEMO_PANEL` no vale `1`,
 - [ ] **Entregar** un pedido `listo` con saldo de $0 lo deja en `entregado`. Entregar uno que no está `listo`, o con saldo, responde 409.
 - [ ] El detalle muestra el historial como línea de tiempo, desde "Pago pendiente" hasta "Entregado", con fecha y comentario.
 - [ ] El QR aparece en el detalle desde `pago_pendiente`, y más grande con "Muéstralo al recoger" en `listo`. Lleva `<origen>/panel/seguimiento/<folio>`.
-- [ ] `/panel/seguimiento/<folio>` muestra el pedido a su dueño. A otro usuario le dice "Pedido no encontrado", y sin sesión manda a `/login`.
+- [ ] `/panel/seguimiento/<folio>` muestra el pedido a su dueño. A otro usuario le dice "Pedido no encontrado", y sin sesión manda a `/login?siguiente=/panel/seguimiento/<folio>`.
+- [ ] Al iniciar sesión desde ese enlace, con correo o con Google, el cliente llega directo a su pedido, no al inicio del panel. `/login?siguiente=https://otro.sitio` o `?siguiente=//otro.sitio` llevan al inicio del panel.
 - [ ] Al aprobar el pago, la consola muestra `[DEMO CORREO] … pedido KAR-… confirmado …`.
 - [ ] La tienda no calcula fechas ni estatus: solo lee `estatus`, `productos[].estatus`, `fechaEntregaEstimada`, `historialEstatus` y `qr` del pedido.
 - [ ] Un `orders.json` de versión 5 se reemplaza por uno vacío sin romper la app.
@@ -231,6 +242,7 @@ Las rutas `demo-panel` no piden sesión de cliente. Si `DEMO_PANEL` no vale `1`,
 - **Sí:** el QR es para los clientes y abre la traza con su sesión (decisión del usuario). El enlace lleva el folio, para que mostrador lo lea al escanear.
 - **No:** una página pública de seguimiento. Mostraría el pedido sin sesión.
 - **Sí:** el QR aparece desde el inicio (`pago_pendiente`) (decisión del usuario).
+- **Sí:** después del login se vuelve a la página que se quería ver, por ejemplo la del QR, para no perder la traza (decisión del usuario, agregada durante la implementación). Solo se aceptan rutas internas `/panel/...`, para evitar una redirección abierta.
 - **Sí:** `qr` guarda el folio, como KARSO, y el enlace lo arma el front con el origen de la tienda. Así funciona en local, en preproducción y en producción.
 - **Sí:** el pedido lo cierra como `entregado` otro panel, el de mostrador, y en el demo el simulador, solo con saldo de $0 (KARSO 5.6).
 - **Sí:** una sola función `notificar()` que en el demo escribe en la consola (decisión del usuario: preparar algo). El envío real lo hará el backend.

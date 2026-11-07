@@ -3,7 +3,9 @@
   "ejemplo": true,
   "configuracion": {
     "zonaHoraria": "America/Mexico_City",
-    "iva": { "tasa": 0.16 },
+    "iva": {
+      "tasa": 0.16
+    },
     "promociones": {
       "maxCodigosPorPedido": 2,
       "modoCombinacion": "suma",
@@ -11,6 +13,40 @@
     },
     "pedidos": {
       "horasExpiracionPagoPendiente": 24
+    },
+    "entregas": {
+      "diasHabiles": [
+        {
+          "dia": "lunes",
+          "corte": "16:00"
+        },
+        {
+          "dia": "martes",
+          "corte": "16:00"
+        },
+        {
+          "dia": "miercoles",
+          "corte": "16:00"
+        },
+        {
+          "dia": "jueves",
+          "corte": "16:00"
+        },
+        {
+          "dia": "viernes",
+          "corte": "16:00"
+        },
+        {
+          "dia": "sabado",
+          "corte": "12:00",
+          "cierre": "14:00"
+        }
+      ],
+      "festivos": [
+        "2026-11-16",
+        "2026-12-25",
+        "2027-01-01"
+      ]
     }
   }
 }

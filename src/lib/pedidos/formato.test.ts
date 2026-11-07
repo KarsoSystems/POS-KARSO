@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   formatearCm,
+  formatearDia,
+  textoDiasHabiles,
   formatearFecha,
   formatearFechaHora,
   formatearMxn,
@@ -114,5 +116,19 @@ describe("fechas en la zona de la tienda", () => {
     expect(formatearFechaHora("2026-11-08T19:38:00.000Z")).toMatch(/^8 nov 2026, 1:38\sp\.\s?m\.$/);
     // 2027-01-01T03:00Z todavía es 31 dic 2026 en CDMX.
     expect(formatearFecha("2027-01-01T03:00:00.000Z")).toBe("31 dic 2026");
+  });
+});
+
+describe("días para recoger", () => {
+  it("formatearDia: día de la semana y fecha corta, sin correrse por la zona del navegador", () => {
+    expect(formatearDia("2026-11-07")).toBe("sábado 7 nov");
+    expect(formatearDia("2026-11-17")).toBe("martes 17 nov");
+    expect(formatearDia("2027-01-01")).toBe("viernes 1 ene");
+  });
+
+  it("textoDiasHabiles", () => {
+    expect(textoDiasHabiles(5)).toBe("5 días hábiles");
+    expect(textoDiasHabiles(1)).toBe("1 día hábil");
+    expect(textoDiasHabiles(0)).toBe("el mismo día");
   });
 });

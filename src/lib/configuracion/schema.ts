@@ -15,6 +15,26 @@ export const MODOS_COMBINACION = ["suma", "cascada"] as const;
  */
 export const ZONA_HORARIA_TIENDA = "America/Mexico_City";
 
+export const DIAS_SEMANA = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"] as const;
+
+const horaSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Hora inválida (HH:MM)");
+
+/** KARSO 6.9 `entregas`: días hábiles con su corte (hora local) y festivos. */
+export const entregasSchema = z
+  .object({
+    diasHabiles: z
+      .array(z.object({ dia: z.enum(DIAS_SEMANA), corte: horaSchema, cierre: horaSchema.optional() }))
+      .min(1, "Debe haber al menos un día hábil"),
+    festivos: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida (YYYY-MM-DD)")),
+  })
+  .superRefine((entregas, ctx) => {
+    const vistos = new Set<string>();
+    entregas.diasHabiles.forEach((d, i) => {
+      if (vistos.has(d.dia)) ctx.addIssue({ code: "custom", path: ["diasHabiles", i, "dia"], message: `Día repetido: ${d.dia}` });
+      vistos.add(d.dia);
+    });
+  });
+
 export const configuracionTiendaSchema = z.object({
   zonaHoraria: z.string().trim().min(1),
   iva: z.object({ tasa: z.number().min(0).max(1) }),
@@ -26,6 +46,7 @@ export const configuracionTiendaSchema = z.object({
   pedidos: z.object({
     horasExpiracionPagoPendiente: z.number().int().positive(), // KARSO 5.6: si no se paga, se cancela
   }),
+  entregas: entregasSchema, // KARSO 5.9 (SPEC 08)
 });
 
 export const configuracionArchivoSchema = z.object({
@@ -35,5 +56,7 @@ export const configuracionArchivoSchema = z.object({
 });
 
 export type ModoCombinacion = (typeof MODOS_COMBINACION)[number];
+export type DiaSemana = (typeof DIAS_SEMANA)[number];
+export type Entregas = z.infer<typeof entregasSchema>;
 export type ConfiguracionTienda = z.infer<typeof configuracionTiendaSchema>;
 export type ConfiguracionArchivo = z.infer<typeof configuracionArchivoSchema>;

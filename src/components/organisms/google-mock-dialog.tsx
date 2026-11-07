@@ -19,7 +19,7 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/atoms/form";
 import { Input } from "@/components/atoms/input";
 import { useGoogleMock } from "@/hooks/use-auth";
-import { rutaParaEstado } from "@/lib/auth-routes";
+import { destinoPara } from "@/lib/auth-routes";
 import { applyApiError } from "@/lib/forms";
 import { googleMockSchema, type GoogleMockData, type GoogleMockInput } from "@/lib/validation/auth";
 
@@ -35,7 +35,8 @@ function GoogleIcon() {
 }
 
 /** Botón "Continuar con Google" del demo: pide nombre y correo, sin OAuth real. */
-export function GoogleMockDialog() {
+/** `siguiente`: la página del panel a la que volver al terminar (SPEC 08), ya validada por la página. */
+export function GoogleMockDialog({ siguiente = null }: { siguiente?: string | null }) {
   const router = useRouter();
   const googleMock = useGoogleMock();
   const [open, setOpen] = useState(false);
@@ -47,7 +48,7 @@ export function GoogleMockDialog() {
   async function onSubmit(values: GoogleMockData) {
     try {
       const { user } = await googleMock.mutateAsync(values);
-      router.replace(rutaParaEstado(user.estado));
+      router.replace(destinoPara(user.estado, siguiente));
     } catch (error) {
       applyApiError(form, error);
     }

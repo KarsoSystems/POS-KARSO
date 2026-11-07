@@ -15,6 +15,7 @@ const HOOKS_DE_DATOS = [
   "use-productos",
   "use-banners",
   "use-sucursales",
+  "use-demo-panel",
   "use-pedidos",
   "use-subir-archivo",
   "use-editor-item",
@@ -63,7 +64,7 @@ const eslintConfig = [
       "@typescript-eslint/no-restricted-imports": [
         "error",
         {
-          paths: ["@/lib/auth-api", "@/lib/pedidos-api", "@/lib/tienda-api"].map((name) => ({
+          paths: ["@/lib/auth-api", "@/lib/pedidos-api", "@/lib/tienda-api", "@/lib/demo-panel-api"].map((name) => ({
             name,
             allowTypeImports: true,
             message: "Pide los datos con los hooks de src/hooks (React Query), no con la API directamente.",

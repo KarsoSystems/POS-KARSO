@@ -55,6 +55,8 @@ export default defineConfig({
     env: {
       // Secreto solo para e2e; no depende del .env.local del desarrollador.
       AUTH_SECRET: E2E_AUTH_SECRET,
+      // El simulador del panel (SPEC 08) para mover el seguimiento de los pedidos.
+      DEMO_PANEL: "1",
       DATA_DIR,
       UPLOADS_DIR,
       PRODUCTOS_PATH,

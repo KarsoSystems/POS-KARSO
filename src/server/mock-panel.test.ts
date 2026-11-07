@@ -81,12 +81,23 @@ describe("mock del panel de ejemplo", () => {
     expect(promociones[0]).toMatchObject({ porcentaje: 10, vigencia: { inicio: "2026-11-13T06:00:00Z" } });
   });
 
-  it("configuracion.json: Ciudad de México, IVA 16 %, 2 códigos, suma, tope de 30 % y pago en 24 h", async () => {
+  it("configuracion.json: CDMX, IVA 16 %, 2 códigos, suma, tope de 30 %, pago en 24 h y días hábiles de KARSO", async () => {
     expect((await cargarConfiguracion()).configuracion).toEqual({
       zonaHoraria: "America/Mexico_City",
       iva: { tasa: 0.16 },
       promociones: { maxCodigosPorPedido: 2, modoCombinacion: "suma", descuentoMaximoPorcentaje: 30 },
       pedidos: { horasExpiracionPagoPendiente: 24 },
+      entregas: {
+        diasHabiles: [
+          { dia: "lunes", corte: "16:00" },
+          { dia: "martes", corte: "16:00" },
+          { dia: "miercoles", corte: "16:00" },
+          { dia: "jueves", corte: "16:00" },
+          { dia: "viernes", corte: "16:00" },
+          { dia: "sabado", corte: "12:00", cierre: "14:00" },
+        ],
+        festivos: ["2026-11-16", "2026-12-25", "2027-01-01"],
+      },
     });
   });
 
@@ -192,6 +203,18 @@ describe("sucursales, promociones y configuración inválidas", () => {
     const porcentaje = await leer(PROMOCIONES_PATH);
     porcentaje.promociones[0].porcentaje = 120;
     expect(() => validarPromociones(porcentaje)).toThrow(/promociones\.0\.porcentaje/);
+  });
+
+  it("una hora de corte o un festivo mal escritos, o un día repetido, fallan", async () => {
+    const corte = await leer(CONFIGURACION_PATH);
+    corte.configuracion.entregas.diasHabiles[0].corte = "4 pm";
+    expect(() => validarConfiguracion(corte)).toThrow(/entregas\.diasHabiles\.0\.corte/);
+    const festivo = await leer(CONFIGURACION_PATH);
+    festivo.configuracion.entregas.festivos.push("16/11/2026");
+    expect(() => validarConfiguracion(festivo)).toThrow(/entregas\.festivos\.3/);
+    const repetido = await leer(CONFIGURACION_PATH);
+    repetido.configuracion.entregas.diasHabiles[1].dia = "lunes";
+    expect(() => validarConfiguracion(repetido)).toThrow(/Día repetido: lunes/);
   });
 
   it("un modo de combinación desconocido o una tasa de IVA de 16 falla", async () => {

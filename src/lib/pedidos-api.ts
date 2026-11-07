@@ -12,6 +12,7 @@ import type { PublicArchivo } from "@/server/domain/archivo";
 import type {
   CambioEstatus,
   Cancelacion,
+  EstatusLinea,
   EstatusPedido,
   LineaPedido,
   Pago,
@@ -24,6 +25,7 @@ export type {
   CambioEstatus,
   Cancelacion,
   CheckoutInput,
+  EstatusLinea,
   EstatusPedido,
   ResultadoPago,
   LineaPedido,
@@ -173,6 +175,9 @@ export const pedidosApi = {
   listar: () => apiFetch<{ pedidos: Pedido[] }>("/api/pedidos"),
 
   detalle: (id: string) => apiFetch<PedidoResponse>(`/api/pedidos/${encodeURIComponent(id)}`),
+
+  /** El pedido del usuario con ese folio: lo abre el QR de seguimiento (SPEC 08). */
+  porFolio: (folio: string) => apiFetch<PedidoResponse>(`/api/pedidos/folio/${encodeURIComponent(folio)}`),
 
   /** Página de pago simulada (SPEC 07): lo que respondería Mercado Pago. */
   pagarSimulado: (id: string, resultado: ResultadoPago) =>

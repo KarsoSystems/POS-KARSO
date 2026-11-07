@@ -61,6 +61,8 @@ export interface PedidoRepository {
   findById(id: string): Promise<Pedido | null>;
   /** Pedidos del usuario sin el borrador, recientes primero. */
   listByUser(userId: string): Promise<Pedido[]>;
+  /** Todos los pedidos sin los borradores, recientes primero (para el panel; en el demo, su simulador). */
+  listAll(): Promise<Pedido[]>;
   /** Lanza PedidoNoEncontradoError o lo que lance `cambiar`. */
   update(id: string, cambiar: CambiarPedido): Promise<Pedido>;
   /**

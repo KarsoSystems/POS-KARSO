@@ -211,7 +211,14 @@ export async function prepararLinea(
   }
 
   return {
-    linea: { ...evaluacion.linea, descripcion: data.descripcion, problema: null },
+    linea: {
+      ...evaluacion.linea,
+      descripcion: data.descripcion,
+      problema: null,
+      estatus: null,
+      fechaEntregaEstimada: null,
+      loteId: null,
+    },
   };
 }
 

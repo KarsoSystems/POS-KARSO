@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import { resumenPagos, venceElPago } from "@/lib/pedidos/pago";
 import type { ResultadoPago } from "@/lib/validation/checkout";
 import type { Pedido } from "@/server/domain/pedido";
+import { notificar } from "@/server/notificaciones";
 import { EstatusPedidoInvalidoError, pedidoRepository, userRepository } from "@/server/repositories";
 
 // Pago en línea con Mercado Pago emulado (SPEC 07; KARSO 5.6 y 5.8). La página de
@@ -47,6 +48,12 @@ export async function vencerPagosDelUsuario(userId: string, ahora: Date = new Da
     });
     if (cancelado) await userRepository.liberarUsosPromociones(userId, id);
   }
+}
+
+/** Cancela los pedidos vencidos de todos los usuarios (la lista del panel). */
+export async function vencerPagosVencidos(ahora: Date = new Date()): Promise<void> {
+  const usuarios = new Set((await pedidoRepository.listAll()).filter((p) => venceElPago(p, ahora)).map((p) => p.userId));
+  for (const userId of usuarios) await vencerPagosDelUsuario(userId, ahora);
 }
 
 /** Referencia de 10 dígitos, como el id de pago de Mercado Pago. */
@@ -98,5 +105,6 @@ export async function registrarPagoSimulado(
   });
   if (vencido) await userRepository.liberarUsosPromociones(pedido.userId, pedido.id);
   if (vencido || yaCancelado) throw new PagoVencidoError();
+  if (resultado === "aprobado") notificar("pedido.enviado", pedido);
   return pedido;
 }

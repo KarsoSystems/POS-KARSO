@@ -1,5 +1,6 @@
 "use client";
 
+import { conSiguiente } from "@/lib/auth-routes";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
@@ -26,7 +27,8 @@ import {
   type CompletarPerfilInput,
 } from "@/lib/validation/auth";
 
-export function CompletarPerfilForm() {
+/** `siguiente`: la página del panel a la que volver al terminar (SPEC 08), ya validada por la página. */
+export function CompletarPerfilForm({ siguiente = null }: { siguiente?: string | null }) {
   const router = useRouter();
   const form = useForm<CompletarPerfilInput, unknown, CompletarPerfilData>({
     resolver: zodResolver(completarPerfilSchema),
@@ -50,7 +52,7 @@ export function CompletarPerfilForm() {
     try {
       const { demoCodigo } = await completarPerfil.mutateAsync(values);
       guardarDemoCodigo(demoCodigo);
-      router.replace("/registro/verificar");
+      router.replace(conSiguiente("/registro/verificar", siguiente));
     } catch (error) {
       if (error instanceof ApiError && (error.status === 401 || error.status === 409)) {
         return redirigirSegunEstado();

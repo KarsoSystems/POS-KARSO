@@ -6,9 +6,12 @@ import { SESSION_COOKIE, verifySessionToken } from "@/server/auth/session";
 // Una cookie inválida o expirada cuenta como "sin sesión".
 export async function middleware(request: NextRequest) {
   const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
-  const { pathname } = request.nextUrl;
+  const { pathname, search, searchParams } = request.nextUrl;
 
-  const destino = redireccionPara(pathname, session?.estado ?? null);
+  const destino = redireccionPara(pathname, session?.estado ?? null, {
+    search,
+    siguiente: searchParams.get("siguiente"),
+  });
   if (destino) return NextResponse.redirect(new URL(destino, request.url));
 
   const response = NextResponse.next();

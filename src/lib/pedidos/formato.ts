@@ -164,3 +164,20 @@ export function textoReverso(reverso: { tipo: "calendario"; anio: number } | { t
     texto.length > LARGO_TEXTO_RECORTADO ? `${texto.slice(0, LARGO_TEXTO_RECORTADO - 1).trimEnd()}…` : texto;
   return `Texto: “${recortado}”`;
 }
+
+// Días sin hora ("YYYY-MM-DD", ya en la zona de la tienda): se formatean en UTC
+// para que el navegador no los corra un día.
+const diaSemana = new Intl.DateTimeFormat("es-MX", { weekday: "long", timeZone: "UTC" });
+const diaMes = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", timeZone: "UTC" });
+
+/** "2026-11-07" → "sábado 7 nov": para "Disponible para recoger a partir del sábado 7 nov". */
+export function formatearDia(dia: string): string {
+  const fecha = new Date(`${dia}T00:00:00Z`);
+  return `${diaSemana.format(fecha)} ${diaMes.format(fecha)}`;
+}
+
+/** Antes de validar el pedido: "5 días hábiles" o "el mismo día". */
+export function textoDiasHabiles(dias: number): string {
+  if (dias === 0) return "el mismo día";
+  return `${dias} ${dias === 1 ? "día hábil" : "días hábiles"}`;
+}
