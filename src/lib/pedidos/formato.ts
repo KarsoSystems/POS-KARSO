@@ -1,6 +1,7 @@
 // Formato para mostrar pedidos en la UI (es-MX).
 
 import { ZONA_HORARIA_TIENDA } from "@/lib/configuracion/schema";
+import { enZona } from "./entrega";
 
 /**
  * Estatus del pedido de KARSO 6.5, más `borrador`, propio del demo (el carrito en
@@ -174,6 +175,11 @@ const diaMes = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short"
 export function formatearDia(dia: string): string {
   const fecha = new Date(`${dia}T00:00:00Z`);
   return `${diaSemana.format(fecha)} ${diaMes.format(fecha)}`;
+}
+
+/** Un instante ISO como el día de la tienda: "Corrige antes del sábado 7 nov" (SPEC 09). */
+export function formatearDiaDe(iso: string): string {
+  return formatearDia(enZona(new Date(iso), ZONA_HORARIA_TIENDA).dia);
 }
 
 /** Antes de validar el pedido: "5 días hábiles" o "el mismo día". */

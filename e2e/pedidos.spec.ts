@@ -306,7 +306,7 @@ test.describe("Borrador", () => {
 
     await page.goto("/panel/pedidos/nuevo");
     await expect(page.getByText("Tu pedido está vacío")).toBeVisible();
-    expect(await leerOrders()).toMatchObject({ version: 6 });
+    expect(await leerOrders()).toMatchObject({ version: 7 });
     // Deja los contadores como estaban para que los folios de otros tests sigan la secuencia.
     await escribirOrders({ ...(await leerOrders()), contadores });
   });

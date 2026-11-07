@@ -129,3 +129,13 @@ export type ArchivosLineaData = z.output<typeof archivosLineaSchema>;
 export type LineaInput = z.input<typeof lineaSchema>;
 export type LineaData = z.output<typeof lineaSchema>;
 
+
+/** PUT /api/pedidos/:id/lineas/:lineaId/archivos (SPEC 09): el archivo corregido de una o las dos caras. */
+export const correccionArchivosSchema = z
+  .object({
+    frente: z.string().min(1).optional(),
+    reverso: z.string().min(1).optional(),
+  })
+  .refine((c) => c.frente !== undefined || c.reverso !== undefined, { message: "Sube al menos un archivo", path: ["frente"] });
+
+export type CorreccionArchivosInput = z.infer<typeof correccionArchivosSchema>;

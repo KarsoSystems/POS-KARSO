@@ -2,7 +2,13 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LineaInput } from "@/lib/validation/pedidos";
-import { pedidosApi, type CheckoutInput, type PedidoResponse, type ResultadoPago } from "@/lib/pedidos-api";
+import {
+  pedidosApi,
+  type CheckoutInput,
+  type CorreccionArchivosInput,
+  type PedidoResponse,
+  type ResultadoPago,
+} from "@/lib/pedidos-api";
 import { queryKeys } from "./query-keys";
 
 /** Borrador del usuario (el servidor lo crea si no hay), con los archivos de sus líneas. */
@@ -83,9 +89,18 @@ export function useConfirmarPedido() {
  * venció o el pedido ya no espera pago (409), también se refresca el detalle.
  */
 export function usePagarSimulado(id: string) {
+  return useCambioDelPedido(id, (resultado: ResultadoPago) => pedidosApi.pagarSimulado(id, resultado));
+}
+
+/**
+ * Un cambio de un pedido hecho (pago, SPEC 07; corrección, SPEC 09): guarda el pedido
+ * de la respuesta en su detalle y vuelve a pedir la lista; si falla (p. ej. 409 porque
+ * el plazo venció y el pedido se canceló), refresca el detalle y la lista.
+ */
+function useCambioDelPedido<V>(id: string, mutationFn: (variables: V) => Promise<PedidoResponse>) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (resultado: ResultadoPago) => pedidosApi.pagarSimulado(id, resultado),
+    mutationFn,
     onSuccess: (datos) => {
       queryClient.setQueryData(queryKeys.pedido(id), datos);
       queryClient.invalidateQueries({ queryKey: queryKeys.pedidos });
@@ -95,4 +110,16 @@ export function usePagarSimulado(id: string) {
       queryClient.invalidateQueries({ queryKey: queryKeys.pedidos });
     },
   });
+}
+
+/** Sube el archivo corregido de una línea rechazada: `{ lineaId, frente?, reverso? }` con ids de archivos ya subidos. */
+export function useCorregirArchivos(id: string) {
+  return useCambioDelPedido(id, ({ lineaId, ...caras }: { lineaId: string } & CorreccionArchivosInput) =>
+    pedidosApi.corregirArchivos(id, lineaId, caras),
+  );
+}
+
+/** "Enviar corrección": el pedido regresa a `enviado`. */
+export function useEnviarCorreccion(id: string) {
+  return useCambioDelPedido(id, () => pedidosApi.enviarCorreccion(id));
 }

@@ -72,6 +72,8 @@ function borrador(userId: string, subtotal: number, cambios: Partial<Pedido> = {
     pagado: 0,
     saldo: 0,
     cancelacion: null,
+    rechazos: [],
+    correccionEnviadaEn: null,
     fechaInicioConteo: null,
     fechaEntregaEstimada: null,
     qr: null,

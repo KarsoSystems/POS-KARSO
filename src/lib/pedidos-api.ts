@@ -4,6 +4,7 @@ import {
   MENSAJE_ARCHIVO_GRANDE,
   MENSAJE_FORMATO_NO_PERMITIDO,
   TAMANO_MAXIMO_ARCHIVO_BYTES,
+  type CorreccionArchivosInput,
   type LineaInput,
 } from "@/lib/validation/pedidos";
 import type { CheckoutInput, ResultadoPago } from "@/lib/validation/checkout";
@@ -18,6 +19,7 @@ import type {
   Pago,
   Pedido,
   PromocionAplicada,
+  Rechazo,
   SucursalEntrega,
 } from "@/server/domain/pedido";
 
@@ -25,6 +27,7 @@ export type {
   CambioEstatus,
   Cancelacion,
   CheckoutInput,
+  CorreccionArchivosInput,
   EstatusLinea,
   EstatusPedido,
   ResultadoPago,
@@ -33,13 +36,15 @@ export type {
   Pedido,
   PromocionAplicada,
   PublicArchivo,
+  Rechazo,
   SucursalEntrega,
 };
 
-/** Pedido con los datos públicos de los archivos de sus líneas, por id. */
+/** Pedido con los datos públicos de los archivos de sus líneas, por id, y los nombres de sus motivos de rechazo, por clave. */
 export interface PedidoResponse {
   pedido: Pedido;
   archivos: Record<string, PublicArchivo>;
+  motivosRechazo: Record<string, string>;
 }
 
 // Vive en archivos.ts (solo arma una URL, no hace peticiones); se reexporta para no romper imports.
@@ -186,4 +191,14 @@ export const pedidosApi = {
       body: { resultado },
     }),
 
+  /** Archivo corregido de una línea rechazada (SPEC 09): reemplaza el frente, el reverso o ambos. */
+  corregirArchivos: (id: string, lineaId: string, caras: CorreccionArchivosInput) =>
+    apiFetch<PedidoResponse>(
+      `/api/pedidos/${encodeURIComponent(id)}/lineas/${encodeURIComponent(lineaId)}/archivos`,
+      { method: "PUT", body: caras },
+    ),
+
+  /** "Enviar corrección" (SPEC 09): el pedido rechazado regresa a `enviado`. */
+  enviarCorreccion: (id: string) =>
+    apiFetch<PedidoResponse>(`/api/pedidos/${encodeURIComponent(id)}/correccion`, { method: "POST" }),
 };

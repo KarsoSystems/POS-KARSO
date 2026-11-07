@@ -9,7 +9,7 @@ import { DIAS_SEMANA, type Entregas } from "@/lib/configuracion/schema";
 // hacen sobre fechas sin hora (UTC a medianoche) para no depender del navegador.
 
 /** Fecha y hora locales de `fecha` en `zona`: el día ("YYYY-MM-DD") y la hora ("HH:MM", 24 h). */
-function enZona(fecha: Date, zona: string): { dia: string; hora: string } {
+export function enZona(fecha: Date, zona: string): { dia: string; hora: string } {
   const partes = Object.fromEntries(
     new Intl.DateTimeFormat("en-CA", {
       timeZone: zona,
@@ -28,8 +28,10 @@ function enZona(fecha: Date, zona: string): { dia: string; hora: string } {
 
 const aFecha = (dia: string) => new Date(`${dia}T00:00:00Z`);
 const aDia = (fecha: Date) => fecha.toISOString().slice(0, 10);
-const siguiente = (dia: string) => aDia(new Date(aFecha(dia).getTime() + 86_400_000));
-const diaSemana = (dia: string) => DIAS_SEMANA[aFecha(dia).getUTCDay()];
+/** El día siguiente a `dia` ("YYYY-MM-DD"). */
+export const siguiente = (dia: string) => aDia(new Date(aFecha(dia).getTime() + 86_400_000));
+/** El día de la semana de `dia` ("lunes", …). */
+export const diaSemana = (dia: string) => DIAS_SEMANA[aFecha(dia).getUTCDay()];
 
 /** El día hábil de la configuración para ese día (con su corte), o undefined si no se trabaja. */
 function habil(dia: string, entregas: Entregas) {

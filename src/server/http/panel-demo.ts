@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { LineaNoEncontradaError, LineaNoRetrocedeError, SaldoPendienteError, demoPanelActivo } from "@/server/pedidos/panel-demo";
+import {
+  LineaNoEncontradaError,
+  LineaNoRetrocedeError,
+  MotivoRechazoInvalidoError,
+  SaldoPendienteError,
+  demoPanelActivo,
+} from "@/server/pedidos/panel-demo";
 import { EstatusPedidoInvalidoError, PedidoNoEncontradoError } from "@/server/repositories";
 import { apiError } from "./responses";
 
@@ -16,5 +22,8 @@ export function errorPanelDemo(error: unknown): NextResponse {
   if (error instanceof EstatusPedidoInvalidoError) return apiError(409, "ESTATUS_INVALIDO", error.message);
   if (error instanceof LineaNoRetrocedeError) return apiError(409, "ESTATUS_INVALIDO", error.message);
   if (error instanceof SaldoPendienteError) return apiError(409, "SALDO_PENDIENTE", error.message);
+  if (error instanceof MotivoRechazoInvalidoError) {
+    return apiError(422, "VALIDACION", "Revisa los datos marcados", { [`lineas.${error.indice}.motivo`]: error.message });
+  }
   throw error;
 }

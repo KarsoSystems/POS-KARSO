@@ -12,7 +12,30 @@
       "descuentoMaximoPorcentaje": 30
     },
     "pedidos": {
-      "horasExpiracionPagoPendiente": 24
+      "horasExpiracionPagoPendiente": 24,
+      "diasParaCorregir": 5,
+      "motivosRechazo": [
+        {
+          "clave": "color_rgb",
+          "nombre": "El archivo está en RGB"
+        },
+        {
+          "clave": "resolucion_insuficiente",
+          "nombre": "Resolución insuficiente"
+        },
+        {
+          "clave": "medida_incorrecta",
+          "nombre": "La medida no corresponde"
+        },
+        {
+          "clave": "fuera_area_segura",
+          "nombre": "Texto o elementos fuera del área segura"
+        },
+        {
+          "clave": "otro",
+          "nombre": "Otro"
+        }
+      ]
     },
     "entregas": {
       "diasHabiles": [

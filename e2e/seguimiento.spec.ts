@@ -188,13 +188,13 @@ test.describe("Página de seguimiento (QR)", () => {
 });
 
 test.describe("Datos de versiones anteriores", () => {
-  test("un orders.json de versión 5 se reemplaza por uno vacío sin romper la app", async ({ page }) => {
+  test("un orders.json de versión 6 se reemplaza por uno vacío sin romper la app", async ({ page }) => {
     await crearCuentaActiva(page.request);
     const { contadores } = await leerOrders();
-    await escribirOrders({ version: 5, contadores, pedidos: [{ id: "viejo", folio: "KAR-2026-000099", estatus: "enviado", productos: [] }] });
+    await escribirOrders({ version: 6, contadores, pedidos: [{ id: "viejo", folio: "KAR-2026-000099", estatus: "enviado", productos: [] }] });
     await page.goto("/panel/pedidos");
     await expect(page.getByText("Aún no tienes pedidos")).toBeVisible();
-    expect(await leerOrders()).toMatchObject({ version: 6 });
+    expect(await leerOrders()).toMatchObject({ version: 7 });
     await escribirOrders({ ...(await leerOrders()), contadores });
   });
 });

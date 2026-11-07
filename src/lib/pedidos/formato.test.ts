@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatearCm,
   formatearDia,
+  formatearDiaDe,
   textoDiasHabiles,
   formatearFecha,
   formatearFechaHora,
@@ -124,6 +125,8 @@ describe("días para recoger", () => {
     expect(formatearDia("2026-11-07")).toBe("sábado 7 nov");
     expect(formatearDia("2026-11-17")).toBe("martes 17 nov");
     expect(formatearDia("2027-01-01")).toBe("viernes 1 ene");
+    // Un instante, como el día de la tienda: el límite para corregir (05:59 Z del 8) sigue siendo el sábado 7 en CDMX.
+    expect(formatearDiaDe("2026-11-08T05:59:59.999Z")).toBe("sábado 7 nov");
   });
 
   it("textoDiasHabiles", () => {

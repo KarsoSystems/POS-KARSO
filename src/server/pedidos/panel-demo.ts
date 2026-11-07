@@ -1,8 +1,10 @@
 import type { ConfiguracionTienda } from "@/lib/configuracion/schema";
+import { fechaLimiteCorreccion } from "@/lib/pedidos/correccion";
 import { estatusDelPedido, fechaEntregaLinea, fechaEntregaPedido, type EstatusLinea } from "@/lib/pedidos/entrega";
 import { ETIQUETA_ESTATUS, type EstatusPedido } from "@/lib/pedidos/formato";
+import type { RechazoInput } from "@/lib/validation/panel-demo";
 import type { Pedido } from "@/server/domain/pedido";
-import { notificar } from "@/server/notificaciones";
+import { notificar, textoRechazos } from "@/server/notificaciones";
 import { EstatusPedidoInvalidoError, pedidoRepository, userRepository } from "@/server/repositories";
 
 // Simulador del panel de KARSO (SPEC 08): hace en el demo lo que harán los
@@ -37,6 +39,17 @@ export class SaldoPendienteError extends Error {
   }
 }
 
+/** Un motivo que no está en `configuracion.pedidos.motivosRechazo`. */
+export class MotivoRechazoInvalidoError extends Error {
+  constructor(
+    readonly indice: number,
+    motivo: string,
+  ) {
+    super(`El motivo "${motivo}" no está en el catálogo`);
+    this.name = "MotivoRechazoInvalidoError";
+  }
+}
+
 const ORDEN_LINEA: Record<EstatusLinea, number> = { recibido: 0, en_proceso: 1, listo: 2 };
 
 function registrar(pedido: Pedido, comentario: string, fecha: string): void {
@@ -62,21 +75,57 @@ export async function listarPedidosPanel(): Promise<PedidoPanel[]> {
 /**
  * Mostrador valida archivos y datos (KARSO 5.8): `enviado` → `recibido`. Empieza el
  * conteo (5.9): cada línea queda en `recibido` con su fecha de entrega, y el pedido
- * con la más tardía ("disponible para recoger a partir del…").
+ * con la más tardía ("disponible para recoger a partir del…"). Si el pedido viene
+ * de una corrección (SPEC 09), el conteo empieza cuando el cliente la envió.
  */
 export function validar(id: string, configuracion: ConfiguracionTienda, ahora: Date = new Date()): Promise<Pedido> {
   return pedidoRepository.update(id, (p) => {
     if (p.estatus !== "enviado") throw new EstatusPedidoInvalidoError(p.id, p.estatus);
     const fecha = ahora.toISOString();
-    p.fechaInicioConteo = fecha;
+    const inicio = p.correccionEnviadaEn ?? fecha;
+    p.fechaInicioConteo = inicio;
     for (const linea of p.productos) {
       linea.estatus = "recibido";
-      linea.fechaEntregaEstimada = fechaEntregaLinea(fecha, linea.diasEntrega, configuracion.entregas, configuracion.zonaHoraria);
+      linea.fechaEntregaEstimada = fechaEntregaLinea(inicio, linea.diasEntrega, configuracion.entregas, configuracion.zonaHoraria);
     }
     p.fechaEntregaEstimada = fechaEntregaPedido(p.productos);
     p.estatus = "recibido";
     registrar(p, "Archivos y datos validados", fecha);
   });
+}
+
+/**
+ * Mostrador rechaza el pedido (KARSO 5.8; SPEC 09): solo desde `enviado` (decisión
+ * del usuario: un defecto en producción es del taller, que ya validó). Cada línea
+ * marcada agrega un rechazo con su motivo y comentario; todas comparten la fecha y
+ * el plazo para corregir. Se avisa al cliente con los motivos.
+ */
+export async function rechazar(
+  id: string,
+  lineas: RechazoInput["lineas"],
+  configuracion: ConfiguracionTienda,
+  ahora: Date = new Date(),
+): Promise<Pedido> {
+  const { motivosRechazo, diasParaCorregir } = configuracion.pedidos;
+  lineas.forEach((l, i) => {
+    if (!motivosRechazo.some((m) => m.clave === l.motivo)) throw new MotivoRechazoInvalidoError(i, l.motivo);
+  });
+  const pedido = await pedidoRepository.update(id, (p) => {
+    if (p.estatus !== "enviado") throw new EstatusPedidoInvalidoError(p.id, p.estatus);
+    for (const { lineaId } of lineas) {
+      if (!p.productos.some((l) => l.lineaId === lineaId)) throw new LineaNoEncontradaError(lineaId);
+    }
+    const fecha = ahora.toISOString();
+    const limite = fechaLimiteCorreccion(fecha, diasParaCorregir, configuracion.entregas, configuracion.zonaHoraria);
+    for (const { lineaId, motivo, comentario } of lineas) {
+      p.rechazos.push({ fecha, por: POR_PANEL_DEMO, lineaId, motivo, comentario, fechaLimiteCorreccion: limite, corregidoEn: null });
+    }
+    p.correccionEnviadaEn = null;
+    p.estatus = "rechazado";
+    registrar(p, textoRechazos(p, motivosRechazo), fecha);
+  });
+  notificar("pedido.rechazado", pedido, { motivosRechazo });
+  return pedido;
 }
 
 /**

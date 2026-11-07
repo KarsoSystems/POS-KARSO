@@ -223,7 +223,7 @@ export function aniosCalendario(ahora: Date = new Date()): [number, number] {
 }
 
 /** El archivo con sus datos y advertencias, o el mensaje de por qué no se puede usar. */
-function archivoDeLinea(
+export function archivoDeLinea(
   id: string,
   disponibles: Record<string, ArchivoDisponible>,
   reglas: ReglasArchivo,

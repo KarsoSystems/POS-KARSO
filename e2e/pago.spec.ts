@@ -215,7 +215,7 @@ test.describe("Datos de versiones anteriores", () => {
 
     await page.goto("/panel/pedidos");
     await expect(page.getByText("Aún no tienes pedidos")).toBeVisible();
-    expect(await leerOrders()).toMatchObject({ version: 6 });
+    expect(await leerOrders()).toMatchObject({ version: 7 });
     // Deja los contadores como estaban para que los folios de otros tests sigan la secuencia.
     await escribirOrders({ ...(await leerOrders()), contadores });
   });

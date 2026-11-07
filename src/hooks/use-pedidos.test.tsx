@@ -12,6 +12,8 @@ import {
   useAplicarCodigo,
   useCambiarCheckout,
   useConfirmarPedido,
+  useCorregirArchivos,
+  useEnviarCorreccion,
   usePagarSimulado,
   usePedidos,
   useQuitarCodigo,
@@ -167,6 +169,39 @@ describe("usePagarSimulado", () => {
 
     await act(() => result.current.mutateAsync("aprobado").catch(() => {}));
     await waitFor(() => expect(result.current.error).toMatchObject({ status: 409, code: "PAGO_VENCIDO" }));
+    expect(queryClient.getQueryState(queryKeys.pedido("p1"))?.isInvalidated).toBe(true);
+  });
+});
+
+describe("useCorregirArchivos y useEnviarCorreccion (SPEC 09)", () => {
+  it("guardan el pedido de la respuesta en su detalle e invalidan la lista", async () => {
+    const corregido = respuesta("p1", "rechazado");
+    fetchMock.mockResolvedValue(jsonResponse(200, corregido));
+    queryClient.setQueryData(queryKeys.pedidos, { pedidos: [] });
+    const corregir = renderHook(() => useCorregirArchivos("p1"), { wrapper });
+
+    await act(() => corregir.result.current.mutateAsync({ lineaId: "l1", frente: "a1" }));
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/pedidos/p1/lineas/l1/archivos");
+    expect(fetchMock.mock.calls[0][1].body).toBe('{"frente":"a1"}');
+    expect(queryClient.getQueryData(queryKeys.pedido("p1"))).toEqual(corregido);
+    expect(queryClient.getQueryState(queryKeys.pedidos)?.isInvalidated).toBe(true);
+
+    const enviado = respuesta("p1", "enviado");
+    fetchMock.mockResolvedValue(jsonResponse(200, enviado));
+    const enviar = renderHook(() => useEnviarCorreccion("p1"), { wrapper });
+    await act(() => enviar.result.current.mutateAsync(undefined));
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/pedidos/p1/correccion");
+    expect(queryClient.getQueryData(queryKeys.pedido("p1"))).toEqual(enviado);
+  });
+
+  it("un 409 CORRECCION_VENCIDA invalida el detalle para mostrarlo cancelado", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(409, { error: { code: "CORRECCION_VENCIDA", message: "El plazo para corregir este pedido venció" } }),
+    );
+    queryClient.setQueryData(queryKeys.pedido("p1"), respuesta("p1", "rechazado"));
+    const { result } = renderHook(() => useEnviarCorreccion("p1"), { wrapper });
+    await act(() => result.current.mutateAsync(undefined).catch(() => {}));
+    await waitFor(() => expect(result.current.error).toBeInstanceOf(ApiError));
     expect(queryClient.getQueryState(queryKeys.pedido("p1"))?.isInvalidated).toBe(true);
   });
 });

@@ -35,6 +35,18 @@ export const entregasSchema = z
     });
   });
 
+/** KARSO 6.9 `pedidos.motivosRechazo`: el catálogo con el que mostrador rechaza una línea. */
+export const motivosRechazoSchema = z
+  .array(z.object({ clave: z.string().trim().min(1), nombre: z.string().trim().min(1) }))
+  .min(1, "Debe haber al menos un motivo de rechazo")
+  .superRefine((motivos, ctx) => {
+    const vistas = new Set<string>();
+    motivos.forEach((m, i) => {
+      if (vistas.has(m.clave)) ctx.addIssue({ code: "custom", path: [i, "clave"], message: `Motivo repetido: ${m.clave}` });
+      vistas.add(m.clave);
+    });
+  });
+
 export const configuracionTiendaSchema = z.object({
   zonaHoraria: z.string().trim().min(1),
   iva: z.object({ tasa: z.number().min(0).max(1) }),
@@ -45,6 +57,8 @@ export const configuracionTiendaSchema = z.object({
   }),
   pedidos: z.object({
     horasExpiracionPagoPendiente: z.number().int().positive(), // KARSO 5.6: si no se paga, se cancela
+    diasParaCorregir: z.number().int().positive(), // KARSO 5.8: plazo para subir el archivo corregido (SPEC 09)
+    motivosRechazo: motivosRechazoSchema,
   }),
   entregas: entregasSchema, // KARSO 5.9 (SPEC 08)
 });
@@ -58,5 +72,6 @@ export const configuracionArchivoSchema = z.object({
 export type ModoCombinacion = (typeof MODOS_COMBINACION)[number];
 export type DiaSemana = (typeof DIAS_SEMANA)[number];
 export type Entregas = z.infer<typeof entregasSchema>;
+export type MotivoRechazo = z.infer<typeof motivosRechazoSchema>[number];
 export type ConfiguracionTienda = z.infer<typeof configuracionTiendaSchema>;
 export type ConfiguracionArchivo = z.infer<typeof configuracionArchivoSchema>;

@@ -8,6 +8,7 @@ import { MAX_ITEMS_POR_PEDIDO, type ArchivosLineaData, type LineaData } from "@/
 import { toPublicArchivo, type PublicArchivo } from "@/server/domain/archivo";
 import type { LineaPedido, Pedido, PromocionAplicada } from "@/server/domain/pedido";
 import { apiError } from "@/server/http/responses";
+import { cargarConfiguracion } from "@/server/mock-panel";
 import {
   archivoRepository,
   EstatusPedidoInvalidoError,
@@ -222,9 +223,30 @@ export async function prepararLinea(
   };
 }
 
-/** Respuesta común de los endpoints de pedidos: el pedido y los archivos de sus líneas. */
+/**
+ * Nombres de los motivos de rechazo del pedido, por clave (SPEC 09): el pedido
+ * guarda la clave, como KARSO, y la tienda muestra el nombre del catálogo. Si el
+ * catálogo no carga o ya no tiene la clave, se muestra la clave.
+ */
+async function motivosDe(pedido: Pedido): Promise<Record<string, string>> {
+  if (pedido.rechazos.length === 0) return {};
+  let catalogo: { clave: string; nombre: string }[] = [];
+  try {
+    catalogo = (await cargarConfiguracion()).configuracion.pedidos.motivosRechazo;
+  } catch (error) {
+    console.error("[mock-panel]", (error as Error).message);
+  }
+  return Object.fromEntries(
+    pedido.rechazos.map((r) => [r.motivo, catalogo.find((m) => m.clave === r.motivo)?.nombre ?? r.motivo]),
+  );
+}
+
+/** Respuesta común de los endpoints de pedidos: el pedido, los archivos de sus líneas y los nombres de sus motivos de rechazo. */
 export async function respuestaPedido(pedido: Pedido, status = 200): Promise<NextResponse> {
-  return NextResponse.json({ pedido, archivos: await archivosDe(pedido) }, { status });
+  return NextResponse.json(
+    { pedido, archivos: await archivosDe(pedido), motivosRechazo: await motivosDe(pedido) },
+    { status },
+  );
 }
 
 export class PedidoVacioError extends Error {

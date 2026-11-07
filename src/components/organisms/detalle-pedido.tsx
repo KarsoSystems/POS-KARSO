@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, CreditCard, FileText, MapPin } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, CreditCard, FileText, MapPin, Send } from "lucide-react";
 import Link from "next/link";
 import { FormError } from "@/components/atoms/form-error";
 import { EstadoBadge } from "@/components/atoms/estado-badge";
@@ -12,11 +12,18 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/atoms/alert";
 import { Button } from "@/components/atoms/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/atoms/card";
 import { Skeleton } from "@/components/atoms/skeleton";
+import { CorreccionLinea } from "@/components/organisms/correccion-linea";
 import { ApiError } from "@/lib/api-client";
-import { formatearDia, formatearFechaHora, formatearMxn, textoDiasHabiles } from "@/lib/pedidos/formato";
+import {
+  correccionCompleta,
+  limiteCorreccion,
+  MOTIVO_SIN_CORRECCION,
+  rechazosVigentes,
+} from "@/lib/pedidos/correccion";
+import { formatearDia, formatearDiaDe, formatearFechaHora, formatearMxn, textoDiasHabiles } from "@/lib/pedidos/formato";
 import type { Pedido } from "@/lib/pedidos-api";
 import { REGIMENES_FISCALES, USOS_CFDI } from "@/lib/validation/fiscal";
-import { usePedido } from "@/hooks/use-pedidos";
+import { useEnviarCorreccion, usePedido } from "@/hooks/use-pedidos";
 
 const mensajeDe = (error: unknown, porDefecto: string) => (error instanceof ApiError ? error.message : porDefecto);
 
@@ -160,6 +167,35 @@ function AvisoPago({ resultado, pedido }: { resultado?: string; pedido: Pedido }
   return null;
 }
 
+/**
+ * Pedido rechazado (SPEC 09): el plazo para corregir y "Enviar corrección", que se
+ * activa cuando cada línea rechazada ya tiene su archivo nuevo.
+ */
+function AvisoRechazo({ pedido }: { pedido: Pedido }) {
+  const enviar = useEnviarCorreccion(pedido.id);
+  const limite = limiteCorreccion(pedido);
+  const lineas = rechazosVigentes(pedido).length;
+  const completa = correccionCompleta(pedido);
+  return (
+    <Alert variant="destructive" data-testid="aviso-rechazo">
+      <AlertTriangle />
+      <AlertTitle>Tu pedido fue rechazado</AlertTitle>
+      <AlertDescription className="space-y-3">
+        <p>
+          {limite && <strong>Corrige antes del {formatearDiaDe(limite)}.</strong>}{" "}
+          Sube el archivo corregido de {lineas === 1 ? "la línea marcada" : `las ${lineas} líneas marcadas`} y envía la
+          corrección para que la sucursal lo vuelva a revisar. Si no lo corriges a tiempo, el pedido se cancela.
+        </p>
+        <Button type="button" onClick={() => enviar.mutate()} disabled={!completa || enviar.isPending}>
+          <Send aria-hidden />
+          Enviar corrección
+        </Button>
+        <FormError message={enviar.error ? mensajeDe(enviar.error, "No se pudo enviar la corrección") : undefined} />
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 /** Estado del pago en el resumen: "Pagar" con la hora límite, o el pago aprobado con su referencia. */
 function EstadoPago({ pedido }: { pedido: Pedido }) {
   const aprobado = pedido.pagos.find((p) => p.estatus === "aprobado");
@@ -207,6 +243,7 @@ export function DetallePedido({ id, resultadoPago }: { id: string; resultadoPago
       </Link>
 
       {pedido && <AvisoPago resultado={resultadoPago} pedido={pedido} />}
+      {pedido?.estatus === "rechazado" && <AvisoRechazo pedido={pedido} />}
 
       <FormError message={error} />
 
@@ -237,6 +274,10 @@ export function DetallePedido({ id, resultadoPago }: { id: string; resultadoPago
                     <dt>Cancelado</dt>
                     <dd className="text-foreground">
                       {formatearFechaHora(pedido.cancelacion.fecha)} · {pedido.cancelacion.motivo}
+                      {/* Ya estaba pagado: el reembolso lo registra el admin desde el panel (SPEC 09). */}
+                      {pedido.cancelacion.motivo === MOTIVO_SIN_CORRECCION && (
+                        <span className="block text-muted-foreground">El reembolso lo gestiona la sucursal.</span>
+                      )}
                     </dd>
                   </>
                 )}
@@ -248,9 +289,25 @@ export function DetallePedido({ id, resultadoPago }: { id: string; resultadoPago
             <div className="min-w-0 space-y-6">
               <section aria-label="Ítems del pedido">
                 <ul className="space-y-3">
-                  {pedido.productos.map((linea) => (
-                    <ItemResumen key={linea.lineaId} linea={linea} archivos={datos.archivos} />
-                  ))}
+                  {pedido.productos.map((linea) => {
+                    const rechazo =
+                      pedido.estatus === "rechazado"
+                        ? rechazosVigentes(pedido).find((r) => r.lineaId === linea.lineaId)
+                        : undefined;
+                    return (
+                      <ItemResumen key={linea.lineaId} linea={linea} archivos={datos.archivos}>
+                        {rechazo && (
+                          <CorreccionLinea
+                            pedidoId={pedido.id}
+                            linea={linea}
+                            rechazo={rechazo}
+                            motivo={datos.motivosRechazo?.[rechazo.motivo] ?? rechazo.motivo}
+                            archivos={datos.archivos}
+                          />
+                        )}
+                      </ItemResumen>
+                    );
+                  })}
                 </ul>
               </section>
               <Card>

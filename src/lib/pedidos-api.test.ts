@@ -79,6 +79,8 @@ describe("pedidosApi", () => {
     ["detalle", () => pedidosApi.detalle("p1"), "GET", "/api/pedidos/p1"],
     ["pagarSimulado", () => pedidosApi.pagarSimulado("p1", "aprobado"), "POST", "/api/pedidos/p1/pago-simulado"],
     ["porFolio", () => pedidosApi.porFolio("KAR-2026-000001"), "GET", "/api/pedidos/folio/KAR-2026-000001"],
+    ["corregirArchivos", () => pedidosApi.corregirArchivos("p1", "l/1", { frente: "a1" }), "PUT", "/api/pedidos/p1/lineas/l%2F1/archivos"],
+    ["enviarCorreccion", () => pedidosApi.enviarCorreccion("p1"), "POST", "/api/pedidos/p1/correccion"],
   ])("%s → %s %s", async (_, call, method, path) => {
     fetchMock.mockResolvedValue(jsonResponse(200, {}));
     await call();
@@ -92,6 +94,12 @@ describe("pedidosApi", () => {
       headers: { "content-type": "application/json" },
       body: '{"cantidad":10}',
     });
+  });
+
+  it("corregirArchivos manda las caras como JSON", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, {}));
+    await pedidosApi.corregirArchivos("p1", "l1", { reverso: "a2" });
+    expect(fetchMock.mock.calls[0][1].body).toBe('{"reverso":"a2"}');
   });
 
   it("pagarSimulado manda el resultado como JSON", async () => {

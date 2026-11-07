@@ -43,6 +43,7 @@ interface LineaGuardada {
   subtotal: number;
   precioBase: number;
   problema: string | null;
+  archivos: { frente: { archivoId: string; nombreOriginal: string } | null };
 }
 
 export interface PedidoGuardado {
@@ -59,9 +60,12 @@ export interface PedidoGuardado {
   saldo: number;
   fechaEntregaEstimada: string | null;
   historialEstatus: { estatus: string; por: string; comentario: string }[];
+  rechazos: { lineaId: string; motivo: string; fechaLimiteCorreccion: string; corregidoEn: string | null }[];
+  correccionEnviadaEn: string | null;
+  fechaInicioConteo: string | null;
 }
 
-/** Contenido de orders.json del servidor de e2e (versión 6; `contadores` por año, como KARSO 6.10). */
+/** Contenido de orders.json del servidor de e2e (versión 7; `contadores` por año, como KARSO 6.10). */
 export async function leerOrders(): Promise<{
   version: number;
   contadores: Record<string, number>;
@@ -70,7 +74,7 @@ export async function leerOrders(): Promise<{
   try {
     return JSON.parse(await readFile(path.join(DATA_DIR, "orders.json"), "utf8"));
   } catch {
-    return { version: 6, contadores: {}, pedidos: [] };
+    return { version: 7, contadores: {}, pedidos: [] };
   }
 }
 

@@ -15,11 +15,12 @@ import {
 // se asigna bajo el mismo lock que la confirmación y no se gastan en borradores.
 // Versión 6 = líneas de KARSO (SPEC 04) con frente y reverso (SPEC 05), sucursal,
 // factura y promociones (SPEC 06), estatus, historial, pagos y folio KAR (SPEC 07),
-// estatus por línea, fechas de entrega y QR (SPEC 08); un archivo de una versión
+// estatus por línea, fechas de entrega y QR (SPEC 08), rechazos y corrección
+// (SPEC 09); un archivo de una versión
 // anterior se descarta: eran datos de prueba del demo.
 // `contadores` sigue a KARSO 6.10: un consecutivo por año, "pedidos-2026".
 interface OrdersFile {
-  version: 6;
+  version: 7;
   contadores: Record<string, number>;
   pedidos: Pedido[];
 }
@@ -34,7 +35,7 @@ async function aplicar(pedido: Pedido, cambiar: CambiarPedido): Promise<void> {
 export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): PedidoRepository {
   const store = createJsonStore<OrdersFile>(
     "orders.json",
-    { version: 6, contadores: {}, pedidos: [] },
+    { version: 7, contadores: {}, pedidos: [] },
     dataDir,
     { versionDistinta: "descartar" },
   );
@@ -76,6 +77,8 @@ export function createJsonPedidoRepository(dataDir: string = resolveDataDir()): 
           pagado: 0,
           saldo: 0,
           cancelacion: null,
+          rechazos: [],
+          correccionEnviadaEn: null,
           fechaInicioConteo: null,
           fechaEntregaEstimada: null,
           qr: null,

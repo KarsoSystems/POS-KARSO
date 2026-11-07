@@ -45,7 +45,7 @@ export interface PromocionAplicada {
 export interface CambioEstatus {
   estatus: EstatusPedido;
   fecha: string; // ISO 8601
-  por: string; // "sistema" (o el id del empleado, desde el panel)
+  por: string; // "sistema", "cliente" (al enviar una corrección, SPEC 09) o el id del empleado, desde el panel
   comentario: string;
 }
 
@@ -60,12 +60,27 @@ export interface Pago {
   recibidoPor: null; // solo en mostrador
 }
 
-/** Cancelación (KARSO 6.5). En la tienda solo la hace el sistema, al vencer el pago. */
+/** Cancelación (KARSO 6.5). En la tienda solo la hace el sistema, al vencer el pago o la corrección. */
 export interface Cancelacion {
   fecha: string;
   por: string; // "sistema"
-  motivo: string; // "Pago no recibido en 24 h"
+  motivo: string; // "Pago no recibido en 24 h" o "No corrigió el archivo en el plazo" (SPEC 09)
   reembolso: null; // los reembolsos los registra el admin, desde el panel
+}
+
+/**
+ * Rechazo de una línea (KARSO 6.5 `rechazos`; SPEC 09). Mostrador rechaza el pedido
+ * completo con un motivo por línea: todas las líneas de una ronda comparten `fecha`
+ * y `fechaLimiteCorreccion`.
+ */
+export interface Rechazo {
+  fecha: string; // ISO
+  por: string; // "panel-demo" (o el id del empleado, desde el panel)
+  lineaId: string;
+  motivo: string; // clave de configuracion.pedidos.motivosRechazo
+  comentario: string; // 1–500 caracteres
+  fechaLimiteCorreccion: string; // ISO: fin del último día para corregir, en la hora de la tienda
+  corregidoEn: string | null; // cuando el cliente subió el archivo nuevo de esa línea
 }
 
 /** Pedido con los totales de KARSO 5.4 (subtotal, descuento, baseIva, tasaIva, iva, total), en pesos. */
@@ -87,6 +102,8 @@ export interface Pedido extends Totales {
   pagado: number; // suma de los pagos aprobados, en pesos
   saldo: number; // total − pagado
   cancelacion: Cancelacion | null;
+  rechazos: Rechazo[]; // [] en el borrador; se conservan las rondas anteriores
+  correccionEnviadaEn: string | null; // "Enviar corrección": de aquí cuenta la entrega al revalidar (KARSO 5.9)
   fechaInicioConteo: string | null; // KARSO 5.9: ISO, al pasar a recibido (SPEC 08)
   fechaEntregaEstimada: string | null; // "YYYY-MM-DD", la más tardía de las líneas: "disponible para recoger a partir del…"
   qr: string | null; // el folio, como KARSO; el enlace de seguimiento lo arma el front

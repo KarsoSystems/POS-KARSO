@@ -81,12 +81,22 @@ describe("mock del panel de ejemplo", () => {
     expect(promociones[0]).toMatchObject({ porcentaje: 10, vigencia: { inicio: "2026-11-13T06:00:00Z" } });
   });
 
-  it("configuracion.json: CDMX, IVA 16 %, 2 códigos, suma, tope de 30 %, pago en 24 h y días hábiles de KARSO", async () => {
+  it("configuracion.json: CDMX, IVA 16 %, 2 códigos, suma, tope de 30 %, pago en 24 h, 5 días para corregir y días hábiles de KARSO", async () => {
     expect((await cargarConfiguracion()).configuracion).toEqual({
       zonaHoraria: "America/Mexico_City",
       iva: { tasa: 0.16 },
       promociones: { maxCodigosPorPedido: 2, modoCombinacion: "suma", descuentoMaximoPorcentaje: 30 },
-      pedidos: { horasExpiracionPagoPendiente: 24 },
+      pedidos: {
+        horasExpiracionPagoPendiente: 24,
+        diasParaCorregir: 5,
+        motivosRechazo: [
+          { clave: "color_rgb", nombre: "El archivo está en RGB" },
+          { clave: "resolucion_insuficiente", nombre: "Resolución insuficiente" },
+          { clave: "medida_incorrecta", nombre: "La medida no corresponde" },
+          { clave: "fuera_area_segura", nombre: "Texto o elementos fuera del área segura" },
+          { clave: "otro", nombre: "Otro" },
+        ],
+      },
       entregas: {
         diasHabiles: [
           { dia: "lunes", corte: "16:00" },
@@ -215,6 +225,18 @@ describe("sucursales, promociones y configuración inválidas", () => {
     const repetido = await leer(CONFIGURACION_PATH);
     repetido.configuracion.entregas.diasHabiles[1].dia = "lunes";
     expect(() => validarConfiguracion(repetido)).toThrow(/Día repetido: lunes/);
+  });
+
+  it("un motivo de rechazo repetido, sin motivos o 0 días para corregir fallan", async () => {
+    const repetido = await leer(CONFIGURACION_PATH);
+    repetido.configuracion.pedidos.motivosRechazo[1].clave = "color_rgb";
+    expect(() => validarConfiguracion(repetido)).toThrow(/pedidos\.motivosRechazo\.1\.clave: Motivo repetido: color_rgb/);
+    const vacio = await leer(CONFIGURACION_PATH);
+    vacio.configuracion.pedidos.motivosRechazo = [];
+    expect(() => validarConfiguracion(vacio)).toThrow(/Debe haber al menos un motivo de rechazo/);
+    const dias = await leer(CONFIGURACION_PATH);
+    dias.configuracion.pedidos.diasParaCorregir = 0;
+    expect(() => validarConfiguracion(dias)).toThrow(/configuracion\.pedidos\.diasParaCorregir/);
   });
 
   it("un modo de combinación desconocido o una tasa de IVA de 16 falla", async () => {

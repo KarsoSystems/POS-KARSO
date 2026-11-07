@@ -59,3 +59,34 @@ export async function borrarArchivo(archivo: Archivo): Promise<void> {
   await fileStorage.delete(archivo.key);
   if (archivo.miniatura) await fileStorage.delete(llaveMiniatura(archivo.key));
 }
+
+/**
+ * Corrección de un pedido rechazado (SPEC 09): copia el archivo nuevo de
+ * `temporal/` a la llave de esa cara en `pedidos/<folio>/` y devuelve la copia. El
+ * archivo anterior se reemplaza (decisión del usuario): si tenía la misma llave,
+ * el binario ya quedó sobrescrito y solo sobra su registro; si no (otra
+ * extensión), se borra completo. Devuelve también cómo quitar el anterior, para
+ * hacerlo hasta que el pedido apunte a la copia.
+ */
+export async function copiarCorreccion(
+  folio: string,
+  lineaId: string,
+  cara: "frente" | "reverso",
+  origen: Archivo,
+  anterior: Archivo | null,
+): Promise<{ copia: Archivo; quitarAnterior: () => Promise<void> }> {
+  const key = llavePedido(folio, lineaId, cara, origen.extension);
+  await fileStorage.copy(origen.key, key);
+  if (origen.miniatura) await fileStorage.copy(llaveMiniatura(origen.key), llaveMiniatura(key));
+  else if (anterior?.key === key && anterior.miniatura) await fileStorage.delete(llaveMiniatura(key));
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { createdAt, ...datos } = origen;
+  const copia = await archivoRepository.create({ ...datos, id: randomUUID(), key });
+
+  async function quitarAnterior(): Promise<void> {
+    if (!anterior) return;
+    if (anterior.key === key) await archivoRepository.delete(anterior.id);
+    else await borrarArchivo(anterior);
+  }
+  return { copia, quitarAnterior };
+}
