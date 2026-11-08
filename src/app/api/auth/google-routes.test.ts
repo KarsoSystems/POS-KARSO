@@ -15,7 +15,7 @@ import { POST as googleMock } from "./google-mock/route";
 import { POST as login } from "./login/route";
 import { POST as registro } from "./registro/route";
 import { POST as verificar } from "./verificar-whatsapp/route";
-import { getSession } from "@/server/auth/session";
+import { accesoActual } from "@/test/sesion";
 import { jar } from "@/test/next-headers-mock";
 
 const post = (body: unknown) =>
@@ -63,7 +63,7 @@ describe("POST /api/auth/google-mock", () => {
       estado: "perfil_incompleto",
     });
     expect((await readJson("users.json")).users[0].passwordHash).toBeNull();
-    expect((await getSession())?.estado).toBe("perfil_incompleto");
+    expect((await accesoActual())?.estado).toBe("perfil_incompleto");
   });
 
   it("el correo de una cuenta por contraseña inicia sesión en la misma cuenta y agrega google", async () => {
@@ -82,7 +82,7 @@ describe("POST /api/auth/google-mock", () => {
     expect(user.providers).toEqual(["password", "google"]);
     expect(user.nombre).toBe("Luis"); // no se sobrescribe con el de Google
     expect(user.estado).toBe("verificacion_pendiente");
-    expect((await getSession())?.sub).toBe(creado.user.id);
+    expect((await accesoActual())?.sub).toBe(creado.user.id);
     expect((await readJson("users.json")).users).toHaveLength(1);
   });
 
@@ -120,17 +120,20 @@ describe("POST /api/auth/completar-perfil", () => {
       estado: "verificacion_pendiente",
     });
     expect(body.demoCodigo).toMatch(/^\d{6}$/);
-    expect((await getSession())?.estado).toBe("verificacion_pendiente");
+    expect((await accesoActual())?.estado).toBe("verificacion_pendiente");
     expect((await readJson("verifications.json")).items).toHaveLength(1);
   });
 
-  it("flujo completo Google → completar → verificar deja la cuenta activa", async () => {
+  it("flujo completo Google → completar → verificar deja la cuenta activa, en la misma sesión", async () => {
     await googleMock(post({ nombre: "Luis", correo: "luis@gmail.com" }));
+    const { sid } = (await accesoActual())!;
     const { demoCodigo } = await (await completarPerfil(post(perfil))).json();
     const res = await verificar(post({ codigo: demoCodigo }));
     expect(res.status).toBe(200);
     expect((await res.json()).user.estado).toBe("activo");
-    expect((await getSession())?.estado).toBe("activo");
+    // Cada cambio de estado reemite el acceso con el estado nuevo, sin abrir otra sesión.
+    expect(await accesoActual()).toMatchObject({ estado: "activo", sid });
+    expect((await readJson("sesiones.json")).sesiones).toHaveLength(1);
   });
 
   it("422 si faltan apellidos o el WhatsApp es inválido", async () => {

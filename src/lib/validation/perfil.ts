@@ -36,8 +36,13 @@ export const datosFiscalesPerfilSchema = z.object({ datosFiscales: datosFiscales
 export const cambioTelefonoSchema = z.object({ whatsapp: whatsappSchema });
 
 /** PUT /api/perfil/contrasena: la nueva y su confirmación (decisión del usuario: sin pedir la actual). */
+/**
+ * Cambiar o crear la contraseña. `contrasenaActual` la exige el servidor solo si la
+ * cuenta ya tiene una (SPEC 11); una cuenta de Google sin contraseña la deja vacía.
+ */
 export const contrasenaSchema = z
   .object({
+    contrasenaActual: z.string().max(200).optional(),
     password: passwordSchema,
     confirmacion: z.string(),
   })

@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/atoms/skeleton";
 import { FormularioDatosFiscales } from "@/components/molecules/formulario-datos-fiscales";
 import { TarjetaContrasena } from "@/components/organisms/tarjeta-contrasena";
 import { TarjetaDireccion } from "@/components/organisms/tarjeta-direccion";
+import { TarjetaSesiones } from "@/components/organisms/tarjeta-sesiones";
 import { TarjetaTelefono } from "@/components/organisms/tarjeta-telefono";
 import { useSesion } from "@/hooks/use-auth";
 import { useBorrarDatosFiscales, useGuardarDatosFiscales } from "@/hooks/use-perfil";
@@ -130,6 +131,7 @@ export function PerfilCliente() {
             <DatosPersonales user={user} />
             <TarjetaTelefono whatsapp={user.whatsapp} />
             <TarjetaContrasena tieneContrasena={user.providers.includes("password")} />
+            <TarjetaSesiones />
           </div>
           <div className="min-w-0 space-y-6">
             <TarjetaDireccion user={user} />

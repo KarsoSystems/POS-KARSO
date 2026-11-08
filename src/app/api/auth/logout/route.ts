@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { clearSession } from "@/server/auth/session";
+import { cerrarSesion, sidParaCerrar } from "@/server/auth/sesiones";
 
+/** Revoca la sesión actual (motivo logout) y borra las cookies. */
 export async function POST() {
-  await clearSession();
+  await cerrarSesion(await sidParaCerrar());
   return NextResponse.json({ ok: true });
 }

@@ -164,9 +164,15 @@ test.describe("Contraseña", () => {
     await form.getByRole("button", { name: "Cambiar contraseña" }).click();
     await expect(form.getByText("Las contraseñas no coinciden")).toBeVisible();
 
+    // Pide la actual (SPEC 11): sin ella o incorrecta, error en su campo.
     await form.getByLabel("Confirma la contraseña").fill("nueva12345");
+    await form.getByLabel("Contraseña actual").fill("equivocada1");
     await form.getByRole("button", { name: "Cambiar contraseña" }).click();
-    await expect(form.getByText("Contraseña guardada")).toBeVisible();
+    await expect(form.getByText("La contraseña actual no es correcta")).toBeVisible();
+
+    await form.getByLabel("Contraseña actual").fill(PASSWORD);
+    await form.getByRole("button", { name: "Cambiar contraseña" }).click();
+    await expect(form.getByText("Contraseña guardada. Cerramos tus otras sesiones.")).toBeVisible();
     expect(await entra(browser, baseURL!, datos.correo, PASSWORD)).toBe(false);
     expect(await entra(browser, baseURL!, datos.correo, "nueva12345")).toBe(true);
   });

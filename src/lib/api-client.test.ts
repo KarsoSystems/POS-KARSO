@@ -110,6 +110,73 @@ describe("apiFetch", () => {
   });
 });
 
+describe("apiFetch: renovación de la sesión (SPEC 11)", () => {
+  const expirado = () => jsonResponse(401, { error: { code: "TOKEN_EXPIRADO", message: "Tu sesión necesita renovarse" } });
+  const rutas = () => fetchMock.mock.calls.map(([url, init]) => `${init.method} ${url}`);
+
+  it("ante TOKEN_EXPIRADO renueva una vez y repite la petición con el mismo body", async () => {
+    fetchMock
+      .mockResolvedValueOnce(expirado())
+      .mockResolvedValueOnce(jsonResponse(200, { user: {} }))
+      .mockResolvedValueOnce(jsonResponse(200, { ok: true }));
+
+    expect(await apiFetch("/api/x", { method: "PUT", body: { a: 1 } })).toEqual({ ok: true });
+    expect(rutas()).toEqual(["PUT /api/x", "POST /api/auth/renovar", "PUT /api/x"]);
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({ body: '{"a":1}', credentials: "include" });
+  });
+
+  it("las peticiones que vencen a la vez esperan una sola renovación", async () => {
+    let renovaciones = 0;
+    const vencidas = new Set<string>();
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === "/api/auth/renovar") {
+        renovaciones++;
+        await new Promise((r) => setTimeout(r, 10));
+        return jsonResponse(200, { user: {} });
+      }
+      if (!vencidas.has(url)) {
+        vencidas.add(url);
+        return expirado();
+      }
+      return jsonResponse(200, { url });
+    });
+
+    const respuestas = await Promise.all(["/api/a", "/api/b", "/api/c"].map((ruta) => apiFetch(ruta)));
+    expect(respuestas).toEqual([{ url: "/api/a" }, { url: "/api/b" }, { url: "/api/c" }]);
+    expect(renovaciones).toBe(1);
+
+    // Una tanda posterior vuelve a renovar (no se queda con la promesa anterior).
+    vencidas.clear();
+    await apiFetch("/api/a");
+    expect(renovaciones).toBe(2);
+  });
+
+  it("si la renovación falla llega su 401 y no se repite la petición", async () => {
+    fetchMock
+      .mockResolvedValueOnce(expirado())
+      .mockResolvedValueOnce(jsonResponse(401, { error: { code: "SESION_REVOCADA", message: "Tu sesión se cerró" } }));
+
+    await expect(apiFetch("/api/x")).rejects.toMatchObject({ status: 401, code: "SESION_REVOCADA" });
+    expect(rutas()).toEqual(["GET /api/x", "POST /api/auth/renovar"]);
+  });
+
+  it("solo renueva una vez: si tras renovar sigue vencido, llega el 401", async () => {
+    fetchMock
+      .mockResolvedValueOnce(expirado())
+      .mockResolvedValueOnce(jsonResponse(200, { user: {} }))
+      .mockResolvedValueOnce(expirado());
+
+    await expect(apiFetch("/api/x")).rejects.toMatchObject({ status: 401, code: "TOKEN_EXPIRADO" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("otros 401 (NO_AUTENTICADO, SESION_REVOCADA) no intentan renovar", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(401, { error: { code: "NO_AUTENTICADO", message: "No has iniciado sesión" } }));
+    await expect(apiFetch("/api/x")).rejects.toMatchObject({ code: "NO_AUTENTICADO" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("authApi", () => {
   it.each([
     ["registro", () => authApi.registro({} as never), "POST", "/api/auth/registro"],

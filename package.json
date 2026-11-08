@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "generar-llaves": "node scripts/generar-llaves.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "5.2.2",

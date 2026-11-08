@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { loginSchema } from "@/lib/validation/auth";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
-import { setSession } from "@/server/auth/session";
+import { iniciarSesion } from "@/server/auth/sesiones";
 import { toPublicUser } from "@/server/domain/user";
 import { apiError, parseBody } from "@/server/http/responses";
 import { userRepository } from "@/server/repositories";
@@ -22,6 +22,6 @@ export async function POST(request: Request) {
   // Una cuenta solo de Google no tiene contraseña: mismo mensaje genérico.
   if (!user || !user.passwordHash || !ok) return credencialesInvalidas();
 
-  await setSession({ sub: user.id, idCliente: user.idCliente, estado: user.estado });
+  await iniciarSesion(user, request.headers.get("user-agent"));
   return NextResponse.json({ user: toPublicUser(user) });
 }

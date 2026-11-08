@@ -14,23 +14,24 @@ import { applyApiError } from "@/lib/forms";
 import { contrasenaSchema, type ContrasenaInput } from "@/lib/validation/perfil";
 
 /**
- * Contraseña (SPEC 10): la nueva y su confirmación, sin pedir la actual (decisión
- * del usuario). Una cuenta que solo entra con Google la crea y desde entonces
- * también entra con correo y contraseña.
+ * Contraseña (SPEC 10): la nueva y su confirmación. Desde la SPEC 11 pide la actual
+ * si la cuenta ya tiene una, y al guardar se cierran las sesiones de los demás
+ * dispositivos. Una cuenta que solo entra con Google la crea sin la actual y desde
+ * entonces también entra con correo y contraseña.
  */
 export function TarjetaContrasena({ tieneContrasena }: { tieneContrasena: boolean }) {
   const cambiar = useCambiarContrasena();
   const [guardada, setGuardada] = useState(false);
   const form = useForm<ContrasenaInput>({
     resolver: zodResolver(contrasenaSchema),
-    defaultValues: { password: "", confirmacion: "" },
+    defaultValues: { contrasenaActual: "", password: "", confirmacion: "" },
   });
 
   async function onSubmit(values: ContrasenaInput) {
     setGuardada(false);
     try {
       await cambiar.mutateAsync(values);
-      form.reset({ password: "", confirmacion: "" });
+      form.reset({ contrasenaActual: "", password: "", confirmacion: "" });
       setGuardada(true);
     } catch (error) {
       applyApiError(form, error);
@@ -55,6 +56,21 @@ export function TarjetaContrasena({ tieneContrasena }: { tieneContrasena: boolea
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-3" aria-label={titulo}>
             <FormError message={form.formState.errors.root?.server?.message} />
+            {tieneContrasena && (
+              <FormField
+                control={form.control}
+                name="contrasenaActual"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contraseña actual</FormLabel>
+                    <FormControl>
+                      <Input type="password" autoComplete="current-password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="password"
@@ -97,7 +113,7 @@ export function TarjetaContrasena({ tieneContrasena }: { tieneContrasena: boolea
               {guardada && (
                 <p className="flex items-center gap-1 text-sm text-exito" role="status">
                   <Check className="size-4" aria-hidden />
-                  Contraseña guardada
+                  Contraseña guardada. Cerramos tus otras sesiones.
                 </p>
               )}
             </div>

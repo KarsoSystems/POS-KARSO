@@ -8,5 +8,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.{ts,tsx}"],
+    // Llave RS256 de la sesión (SPEC 11), generada en cada corrida.
+    setupFiles: ["src/test/llaves.ts"],
   },
 });

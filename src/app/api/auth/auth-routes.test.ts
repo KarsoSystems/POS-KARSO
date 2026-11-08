@@ -15,7 +15,9 @@ import { POST as login } from "./login/route";
 import { POST as logout } from "./logout/route";
 import { GET as me } from "./me/route";
 import { POST as registro } from "./registro/route";
-import { getSession, SESSION_COOKIE } from "@/server/auth/session";
+import { COOKIE_ACCESO, COOKIE_RENOVACION } from "@/server/auth/sesiones";
+import { sesionRepository } from "@/server/repositories";
+import { accesoActual } from "@/test/sesion";
 import { jar } from "@/test/next-headers-mock";
 
 const post = (body: unknown) =>
@@ -50,7 +52,7 @@ afterAll(async () => {
 });
 
 describe("POST /api/auth/registro", () => {
-  it("crea el usuario CLI-000001 en verificacion_pendiente y pone la cookie", async () => {
+  it("crea el usuario CLI-000001 en verificacion_pendiente e inicia una sesión", async () => {
     const res = await registro(post(registroValido));
     expect(res.status).toBe(201);
     const body = await res.json();
@@ -64,12 +66,11 @@ describe("POST /api/auth/registro", () => {
       correoVerificado: false,
     });
     expect(body.user).not.toHaveProperty("passwordHash");
-    expect(await getSession()).toEqual({
-      sub: body.user.id,
-      idCliente: "CLI-000001",
-      estado: "verificacion_pendiente",
-    });
-    expect(jar.get(SESSION_COOKIE)?.options).toMatchObject({ httpOnly: true });
+    const acceso = await accesoActual();
+    expect(acceso).toMatchObject({ sub: body.user.id, idCliente: "CLI-000001", estado: "verificacion_pendiente" });
+    expect(await sesionRepository.findById(acceso!.sid)).toMatchObject({ userId: body.user.id, revocadaEn: null });
+    expect(jar.get(COOKIE_ACCESO)?.options).toMatchObject({ httpOnly: true, path: "/" });
+    expect(jar.get(COOKIE_RENOVACION)?.options).toMatchObject({ httpOnly: true, path: "/api/auth" });
   });
 
   it("guarda la contraseña hasheada y nunca en texto plano", async () => {
@@ -141,7 +142,7 @@ describe("POST /api/auth/login", () => {
     const res = await login(post({ correo: "ANA@ejemplo.com", password: "secreto123" }));
     expect(res.status).toBe(200);
     expect((await res.json()).user.idCliente).toBe("CLI-000001");
-    expect((await getSession())?.idCliente).toBe("CLI-000001");
+    expect((await accesoActual())?.idCliente).toBe("CLI-000001");
   });
 
   it("contraseña incorrecta y correo inexistente dan el mismo 401 genérico", async () => {
@@ -154,7 +155,8 @@ describe("POST /api/auth/login", () => {
     expect(sinCuenta.status).toBe(401);
     expect(await malPassword.json()).toEqual(esperado);
     expect(await sinCuenta.json()).toEqual(esperado);
-    expect(jar.has(SESSION_COOKIE)).toBe(false);
+    expect(jar.has(COOKIE_ACCESO)).toBe(false);
+    expect(jar.has(COOKIE_RENOVACION)).toBe(false);
   });
 
   it("422 si falta la contraseña", async () => {
@@ -179,19 +181,31 @@ describe("GET /api/auth/me y POST /api/auth/logout", () => {
     expect((await res.json()).error.code).toBe("NO_AUTENTICADO");
   });
 
-  it("me da 401 y limpia la cookie si el usuario ya no existe", async () => {
+  it("me da 401 y limpia las cookies si la sesión o el usuario ya no existen", async () => {
     await registro(post(registroValido));
     await rm(env.dataDir, { recursive: true, force: true });
     const res = await me();
     expect(res.status).toBe(401);
-    expect(jar.get(SESSION_COOKIE)?.value).toBe("");
+    expect(jar.get(COOKIE_ACCESO)?.value).toBe("");
+    expect(jar.get(COOKIE_RENOVACION)?.value).toBe("");
   });
 
-  it("logout borra la cookie y me deja de responder", async () => {
+  it("logout revoca la sesión (logout), borra las cookies y me deja de responder", async () => {
     await registro(post(registroValido));
+    const { sid } = (await accesoActual())!;
+    const copia = new Map(jar);
     const res = await logout();
     expect(res.status).toBe(200);
-    expect(jar.get(SESSION_COOKIE)).toMatchObject({ value: "", options: { maxAge: 0 } });
+    for (const nombre of [COOKIE_ACCESO, COOKIE_RENOVACION]) {
+      expect(jar.get(nombre)).toMatchObject({ value: "", options: { maxAge: 0 } });
+    }
+    expect(await sesionRepository.findById(sid)).toMatchObject({ motivoRevocacion: "logout" });
     expect((await me()).status).toBe(401);
+
+    // Las cookies copiadas antes de salir ya no sirven: la sesión está revocada.
+    for (const [k, v] of copia) jar.set(k, v);
+    const conCopia = await me();
+    expect(conCopia.status).toBe(401);
+    expect((await conCopia.json()).error.code).toBe("SESION_REVOCADA");
   });
 });

@@ -111,7 +111,7 @@ La **hoja técnica para el backend**, que reúne todo lo trabajado en las SPEC 0
 ### Tokens (`src/server/auth/tokens.ts`, compatible con edge)
 
 ```ts
-export const ACCESO_SEGUNDOS = 15 * 60; // AUTH_ACCESO_SEGUNDOS lo acorta solo en e2e
+export const ACCESO_SEGUNDOS = 15 * 60; // AUTH_ACCESO_SEGUNDOS lo acorta para probar a mano
 export const RENOVACION_SEGUNDOS = 7 * 24 * 60 * 60;
 
 export interface Acceso { sub: string; sid: string; idCliente: string; estado: EstadoCuenta }
@@ -199,7 +199,7 @@ Todas las rutas con sesión pueden responder 401 `TOKEN_EXPIRADO`, que `apiFetch
    - La tarjeta de contraseña: "Contraseña actual" cuando aplica y "Cerramos tus otras sesiones".
    - "Cerrar sesión en los demás dispositivos", con su confirmación.
    - Tests de rutas y de hooks.
-6. **E2E** (`e2e/sesion-tokens.spec.ts`; el servidor de e2e corre con `AUTH_ACCESO_SEGUNDOS` corto):
+6. **E2E** (`e2e/sesion-tokens.spec.ts`). El servidor de e2e conserva los 15 min: para probar un acceso vencido, el test firma uno ya vencido de la misma sesión con la llave de e2e (decisión del usuario durante la implementación, porque las suites llaman a la API con `page.request`, que no renueva, y un acceso corto para todo el servidor las haría fallar al azar; `AUTH_ACCESO_SEGUNDOS` queda para probar a mano). Cubre:
    - las cookies `acceso` y `renovacion` con sus banderas y su `path`;
    - el token de acceso se verifica con `/.well-known/jwks.json`;
    - al vencer el acceso, navegar y llamar a la API siguen funcionando, y la renovación rota el `jti`;
@@ -262,7 +262,7 @@ Todas las rutas con sesión pueden responder 401 `TOKEN_EXPIRADO`, que `apiFetch
 - **No:** una lista de sesiones activas por ahora.
 - **Sí:** pedir la contraseña actual para cambiarla (decisión del usuario; cierra el riesgo anotado en la SPEC 10). Una cuenta de Google sin contraseña la crea sin ella.
 - **Sí:** no conservar las sesiones abiertas ni migrar el HS256 (decisión del usuario). El siguiente paso es el backend, no la demo.
-- **Sí:** `AUTH_ACCESO_SEGUNDOS` solo para acortar el token de acceso en e2e. Por omisión, 15 minutos.
+- **Sí:** `AUTH_ACCESO_SEGUNDOS` solo para acortar el token de acceso al probar a mano. Por omisión, 15 minutos. Los e2e firman un token ya vencido en lugar de acortarlo (cambio durante la implementación).
 - **Sí:** `AUTH_SECRET` se queda solo para las URLs de subida, que son otra cosa (las hará R2 con su propia firma).
 - **Sí:** la hoja técnica para el backend es la SPEC 12, solo de documentación (decisión del usuario).
 

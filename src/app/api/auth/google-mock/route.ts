@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { googleMockSchema } from "@/lib/validation/auth";
-import { setSession } from "@/server/auth/session";
+import { iniciarSesion } from "@/server/auth/sesiones";
 import { toPublicUser, type User } from "@/server/domain/user";
 import { parseBody } from "@/server/http/responses";
 import { userRepository } from "@/server/repositories";
@@ -39,6 +39,6 @@ export async function POST(request: Request) {
     status = 201;
   }
 
-  await setSession({ sub: user.id, idCliente: user.idCliente, estado: user.estado });
+  await iniciarSesion(user, request.headers.get("user-agent"));
   return NextResponse.json({ user: toPublicUser(user) }, { status });
 }

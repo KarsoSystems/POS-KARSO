@@ -7,6 +7,8 @@ import { crearQueryClient } from "@/app/providers";
 import { queryKeys } from "./query-keys";
 import {
   useBorrarDatosFiscales,
+  useCambiarContrasena,
+  useCerrarOtrasSesiones,
   useGuardarDireccion,
   usePedirCambioTelefono,
   useTelefonoEnCurso,
@@ -45,6 +47,26 @@ describe("tarjetas del perfil", () => {
     const borrar = renderHook(() => useBorrarDatosFiscales(), { wrapper });
     await act(() => borrar.result.current.mutateAsync(undefined));
     expect(queryClient.getQueryData(queryKeys.sesion)).toEqual({ user: { id: "u1", datosFiscales: null } });
+  });
+});
+
+describe("sesiones (SPEC 11)", () => {
+  it("cambiar la contraseña guarda el usuario en la caché y entrega cuántas sesiones cerró", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { user: { id: "u1", providers: ["google", "password"] }, sesionesCerradas: 2 }));
+    const cambiar = renderHook(() => useCambiarContrasena(), { wrapper });
+    const respuesta = await act(() =>
+      cambiar.result.current.mutateAsync({ contrasenaActual: "actual123", password: "nueva1234", confirmacion: "nueva1234" }),
+    );
+    expect(respuesta.sesionesCerradas).toBe(2);
+    expect(queryClient.getQueryData(queryKeys.sesion)).toEqual({ user: { id: "u1", providers: ["google", "password"] } });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ contrasenaActual: "actual123" });
+  });
+
+  it("cerrar las demás sesiones hace DELETE /api/perfil/sesiones y entrega cuántas cerró", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { cerradas: 3 }));
+    const cerrar = renderHook(() => useCerrarOtrasSesiones(), { wrapper });
+    expect(await act(() => cerrar.result.current.mutateAsync())).toEqual({ cerradas: 3 });
+    expect(fetchMock).toHaveBeenCalledWith("/api/perfil/sesiones", expect.objectContaining({ method: "DELETE" }));
   });
 });
 

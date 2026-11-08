@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { getAuthSecret } from "@/server/auth/session";
+import { getAuthSecret } from "@/server/auth/secreto";
 
 // URL firmada de subida, como la que dará R2 (SPEC 05). En el demo la sirve el
 // "R2 local" (src/app/api/r2-local/[...key]/route.ts): la firma autoriza el PUT,

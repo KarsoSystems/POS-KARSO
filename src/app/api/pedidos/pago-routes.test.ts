@@ -22,7 +22,7 @@ import { CONFIGURACION_PATH, PRODUCTOS_PATH } from "@/server/mock-panel";
 import { userRepository } from "@/server/repositories";
 import { subirArchivoPrueba } from "@/test/archivos";
 import { jar } from "@/test/next-headers-mock";
-import { iniciarSesionActiva } from "@/test/sesion";
+import { iniciarSesionActiva, renovarSiHaySesion } from "@/test/sesion";
 import { POST as pagoRuta } from "./[id]/pago-simulado/route";
 import { GET as detalleRuta } from "./[id]/route";
 import { POST as confirmarRuta } from "./borrador/confirmar/route";
@@ -60,10 +60,11 @@ async function hacerPedido(codigo?: string) {
   return (await res.json()).pedido;
 }
 
-/** Mueve el reloj (solo Date) a `fecha`. */
-const reloj = (fecha: number | string) => {
+/** Mueve el reloj (solo Date) a `fecha` y, si hay sesión, renueva el acceso como lo haría apiFetch. */
+const reloj = async (fecha: number | string) => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(fecha));
+  await renovarSiHaySesion();
 };
 
 beforeEach(async () => {
@@ -181,7 +182,7 @@ describe("vencimiento del pago (al leer)", () => {
   it("un minuto antes de la hora límite todavía se puede pagar", async () => {
     await iniciarSesionActiva();
     const pedido = await hacerPedido();
-    reloj(Date.parse(pedido.vencimientoPago) - 60_000);
+    await reloj(Date.parse(pedido.vencimientoPago) - 60_000);
     expect((await pagar(pedido.id, "aprobado")).status).toBe(200);
   });
 
@@ -190,7 +191,7 @@ describe("vencimiento del pago (al leer)", () => {
     const pedido = await hacerPedido("BIENVENIDA5");
     expect((await userRepository.findById(user.id))?.usosPromociones).toHaveLength(1);
 
-    reloj(pedido.vencimientoPago);
+    await reloj(pedido.vencimientoPago);
     const [enLista] = await lista();
     expect(enLista).toMatchObject({
       estatus: "cancelado",
@@ -215,7 +216,7 @@ describe("vencimiento del pago (al leer)", () => {
   it("pagar un pedido vencido → 409 PAGO_VENCIDO y queda cancelado (aunque nadie lo haya leído antes)", async () => {
     const user = await iniciarSesionActiva();
     const pedido = await hacerPedido("BIENVENIDA5");
-    reloj(Date.parse(pedido.vencimientoPago) + HORA);
+    await reloj(Date.parse(pedido.vencimientoPago) + HORA);
     const res = await pagar(pedido.id, "aprobado");
     expect(res.status).toBe(409);
     expect((await res.json()).error).toMatchObject({ code: "PAGO_VENCIDO", message: "El plazo para pagar este pedido venció" });
@@ -230,7 +231,7 @@ describe("vencimiento del pago (al leer)", () => {
     await iniciarSesionActiva();
     const pedido = await hacerPedido();
     await pagar(pedido.id, "aprobado");
-    reloj(Date.parse(pedido.vencimientoPago) + 48 * HORA);
+    await reloj(Date.parse(pedido.vencimientoPago) + 48 * HORA);
     expect((await detalle(pedido.id)).estatus).toBe("enviado");
   });
 });

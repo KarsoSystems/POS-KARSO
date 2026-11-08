@@ -9,7 +9,7 @@ import { queryKeys } from "./query-keys";
 // "Mi perfil" (SPEC 10). Lo que responde con el usuario se escribe en la caché de
 // la sesión: el encabezado y las demás pantallas lo ven sin otra petición.
 
-function useGuardarEnSesion<V>(mutationFn: (variables: V) => Promise<UserResponse>) {
+function useGuardarEnSesion<V, R extends UserResponse>(mutationFn: (variables: V) => Promise<R>) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn,
@@ -24,6 +24,9 @@ export const useGuardarDatosFiscales = () =>
 export const useBorrarDatosFiscales = () => useGuardarEnSesion(() => perfilApi.borrarDatosFiscales());
 export const useCambiarContrasena = () =>
   useGuardarEnSesion((input: ContrasenaInput) => perfilApi.cambiarContrasena(input));
+
+/** Cierra las sesiones de los demás dispositivos; la actual sigue (SPEC 11). */
+export const useCerrarOtrasSesiones = () => useMutation({ mutationFn: () => perfilApi.cerrarOtrasSesiones() });
 
 /** El cambio de teléfono en curso (para retomarlo al recargar la página). */
 export function useTelefonoEnCurso() {

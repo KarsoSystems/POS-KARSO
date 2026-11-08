@@ -23,8 +23,12 @@ export const perfilApi = {
 
   borrarDatosFiscales: () => apiFetch<UserResponse>("/api/perfil/datos-fiscales", { method: "DELETE" }),
 
+  /** Responde también cuántas sesiones de otros dispositivos se cerraron (SPEC 11). */
   cambiarContrasena: (input: ContrasenaInput) =>
-    apiFetch<UserResponse>("/api/perfil/contrasena", { method: "PUT", body: input }),
+    apiFetch<UserResponse & { sesionesCerradas: number }>("/api/perfil/contrasena", { method: "PUT", body: input }),
+
+  /** "Cerrar sesión en los demás dispositivos" (SPEC 11). */
+  cerrarOtrasSesiones: () => apiFetch<{ cerradas: number }>("/api/perfil/sesiones", { method: "DELETE" }),
 
   telefonoEnCurso: () => apiFetch<{ whatsappNuevo: string | null }>("/api/perfil/telefono"),
 

@@ -13,10 +13,12 @@ vi.mock("next/headers", () => import("@/test/next-headers-mock"));
 import { POST as login } from "@/app/api/auth/login/route";
 import { userRepository } from "@/server/repositories";
 import { jar } from "@/test/next-headers-mock";
-import { iniciarSesionActiva } from "@/test/sesion";
+import { GET as me } from "@/app/api/auth/me/route";
+import { cambiarSesion, iniciarSesionActiva } from "@/test/sesion";
 import { DELETE as borrarFiscales, PUT as guardarFiscales } from "./datos-fiscales/route";
 import { PUT as cambiarContrasena } from "./contrasena/route";
 import { PUT as guardarDireccion } from "./direccion/route";
+import { DELETE as cerrarOtras } from "./sesiones/route";
 import { POST as reenviarTelefono } from "./telefono/reenviar/route";
 import { DELETE as cancelarTelefono, GET as telefonoEnCurso, POST as pedirTelefono } from "./telefono/route";
 import { POST as verificarTelefono } from "./telefono/verificar/route";
@@ -27,6 +29,11 @@ const json = (method: string, body: unknown) =>
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+/** Otro navegador: sus cookies en lugar de las actuales. */
+const usarCookies = (copia: Map<string, { value: string; options: Record<string, unknown> }>) => {
+  jar.clear();
+  for (const [k, v] of copia) jar.set(k, v);
+};
 const readJson = async (file: string) => JSON.parse(await readFile(path.join(env.dataDir, file), "utf8"));
 
 const direccion = { calle: "Av. Juárez 123", colonia: "Centro", ciudad: "Monterrey", estado: "Nuevo León", codigoPostal: "64000" };
@@ -124,11 +131,13 @@ describe("PUT y DELETE /api/perfil/datos-fiscales", () => {
 describe("PUT /api/perfil/contrasena", () => {
   const entrar = (password: string) =>
     login(json("POST", { correo: "ana@ejemplo.com", password }));
+  const cambiar = (password: string, contrasenaActual?: string) =>
+    cambiarContrasena(json("PUT", { contrasenaActual, password, confirmacion: password }));
 
-  it("cambia la contraseña: la nueva inicia sesión y la anterior ya no", async () => {
+  it("cambia la contraseña con la actual: la nueva inicia sesión y la anterior ya no", async () => {
     const user = await iniciarSesionActiva();
-    expect((await cambiarContrasena(json("PUT", { password: "primera123", confirmacion: "primera123" }))).status).toBe(200);
-    const res = await cambiarContrasena(json("PUT", { password: "segunda456", confirmacion: "segunda456" }));
+    expect((await cambiar("primera123")).status).toBe(200);
+    const res = await cambiar("segunda456", "primera123");
     expect(res.status).toBe(200);
     expect((await res.json()).user).not.toHaveProperty("passwordHash");
 
@@ -137,16 +146,52 @@ describe("PUT /api/perfil/contrasena", () => {
     expect((await userRepository.findById(user.id))?.providers).toEqual(["google", "password"]);
   });
 
-  it("una cuenta solo de Google crea su contraseña y suma \"password\" a providers una sola vez", async () => {
+  it("si la cuenta ya tiene contraseña, sin la actual o con una incorrecta → 422 en su campo y no cambia", async () => {
+    const user = await iniciarSesionActiva();
+    await cambiar("primera123");
+    const hash = (await userRepository.findById(user.id))?.passwordHash;
+
+    const sinActual = await cambiar("segunda456");
+    expect(sinActual.status).toBe(422);
+    expect((await sinActual.json()).error.fields).toEqual({ contrasenaActual: "Escribe tu contraseña actual" });
+    const incorrecta = await cambiar("segunda456", "otra12345");
+    expect(incorrecta.status).toBe(422);
+    expect((await incorrecta.json()).error).toMatchObject({
+      code: "CONTRASENA_INCORRECTA",
+      fields: { contrasenaActual: "La contraseña actual no es correcta" },
+    });
+    expect((await userRepository.findById(user.id))?.passwordHash).toBe(hash);
+  });
+
+  it("una cuenta solo de Google crea su contraseña sin la actual y suma \"password\" a providers una sola vez", async () => {
     const user = await iniciarSesionActiva();
     expect(user).toMatchObject({ passwordHash: null, providers: ["google"] });
     expect((await entrar("creada123")).status).toBe(401);
 
-    const res = await cambiarContrasena(json("PUT", { password: "creada123", confirmacion: "creada123" }));
+    const res = await cambiar("creada123");
     expect((await res.json()).user.providers).toEqual(["google", "password"]);
     expect((await entrar("creada123")).status).toBe(200);
-    await cambiarContrasena(json("PUT", { password: "otra12345", confirmacion: "otra12345" }));
+    await cambiar("otra12345", "creada123");
     expect((await userRepository.findById(user.id))?.providers).toEqual(["google", "password"]);
+  });
+
+  it("cierra las demás sesiones del usuario y conserva la actual (y las de otros usuarios)", async () => {
+    const ana = await iniciarSesionActiva();
+    const otroNavegador = new Map(jar);
+    await iniciarSesionActiva("beto@ejemplo.com");
+    const deBeto = new Map(jar);
+    await cambiarSesion(ana);
+
+    const res = await cambiar("nueva1234");
+    expect(await res.json()).toMatchObject({ sesionesCerradas: 1 });
+    expect((await me()).status).toBe(200);
+
+    usarCookies(otroNavegador);
+    const cerrada = await me();
+    expect(cerrada.status).toBe(401);
+    expect((await cerrada.json()).error.code).toBe("SESION_REVOCADA");
+    usarCookies(deBeto);
+    expect((await me()).status).toBe(200);
   });
 
   it("si no coinciden o no cumplen las reglas del registro → 422 por campo y no cambia", async () => {
@@ -154,13 +199,40 @@ describe("PUT /api/perfil/contrasena", () => {
     const distinta = await cambiarContrasena(json("PUT", { password: "nueva1234", confirmacion: "nueva9999" }));
     expect(distinta.status).toBe(422);
     expect((await distinta.json()).error.fields).toEqual({ confirmacion: "Las contraseñas no coinciden" });
-    const debil = await cambiarContrasena(json("PUT", { password: "sinnumeros", confirmacion: "sinnumeros" }));
+    const debil = await cambiar("sinnumeros");
     expect((await debil.json()).error.fields).toEqual({ password: "La contraseña debe incluir al menos un número" });
     expect((await userRepository.findById(user.id))?.passwordHash).toBeNull();
   });
 
   it("sin sesión → 401", async () => {
-    expect((await cambiarContrasena(json("PUT", { password: "nueva1234", confirmacion: "nueva1234" }))).status).toBe(401);
+    expect((await cambiar("nueva1234")).status).toBe(401);
+  });
+});
+
+describe("DELETE /api/perfil/sesiones", () => {
+  it("cierra las demás sesiones, conserva la actual y dice cuántas cerró", async () => {
+    const ana = await iniciarSesionActiva();
+    const navegadores = [new Map(jar)];
+    await cambiarSesion(ana);
+    navegadores.push(new Map(jar));
+    await cambiarSesion(ana);
+
+    const res = await cerrarOtras();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ cerradas: 2 });
+    expect((await me()).status).toBe(200);
+    expect(await (await cerrarOtras()).json()).toEqual({ cerradas: 0 });
+
+    for (const cookies of navegadores) {
+      usarCookies(cookies);
+      expect((await me()).status).toBe(401);
+    }
+    const { sesiones } = await readJson("sesiones.json");
+    expect(sesiones.filter((s: { motivoRevocacion: string }) => s.motivoRevocacion === "otras_sesiones")).toHaveLength(2);
+  });
+
+  it("sin sesión → 401", async () => {
+    expect((await cerrarOtras()).status).toBe(401);
   });
 });
 

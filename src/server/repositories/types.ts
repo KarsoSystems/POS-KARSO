@@ -1,5 +1,6 @@
 import type { Archivo } from "@/server/domain/archivo";
 import type { Pedido } from "@/server/domain/pedido";
+import type { MotivoRevocacion, Sesion } from "@/server/domain/sesion";
 import type { ImmutableUserField, NewUser, User, UsoPromocion } from "@/server/domain/user";
 import type { WhatsappVerification } from "@/server/domain/verification";
 
@@ -25,6 +26,16 @@ export interface UserRepository {
   registrarUsosPromociones(userId: string, usos: UsoPromocion[]): Promise<void>;
   /** Al cancelar el pedido: sus códigos se pueden volver a usar. Lanza UsuarioNoEncontradoError. */
   liberarUsosPromociones(userId: string, pedidoId: string): Promise<void>;
+}
+
+/** Sesiones de la tienda (SPEC 11). */
+export interface SesionRepository {
+  create(sesion: Sesion): Promise<Sesion>;
+  findById(id: string): Promise<Sesion | null>;
+  /** Cambia la sesión bajo el lock; null si no existe. */
+  update(id: string, cambiar: (sesion: Sesion) => void | Promise<void>): Promise<Sesion | null>;
+  /** Revoca las sesiones activas del usuario (menos `excepto`); devuelve cuántas. */
+  revocarDelUsuario(userId: string, opciones: { excepto?: string; motivo: MotivoRevocacion; ahora?: Date }): Promise<number>;
 }
 
 export interface VerificationRepository {

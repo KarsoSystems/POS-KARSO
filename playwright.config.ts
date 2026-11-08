@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
 import {
   BANNERS_ORIGINAL,
@@ -28,6 +29,12 @@ const COPIAS_MOCK = [
   .join(" && ");
 
 const PORT = 3100;
+
+// Llave RS256 de la sesión solo para e2e (SPEC 11): se genera en cada corrida y los
+// procesos de Playwright la heredan por el entorno; nunca se guarda en git.
+process.env.E2E_AUTH_PRIVATE_KEY ??= generateKeyPairSync("rsa", { modulusLength: 2048 })
+  .privateKey.export({ type: "pkcs8", format: "pem" })
+  .toString();
 // Datos, archivos subidos y mock del panel del e2e en una carpeta temporal; se
 // recrea cada vez que arranca el servidor.
 
@@ -55,6 +62,9 @@ export default defineConfig({
     env: {
       // Secreto solo para e2e; no depende del .env.local del desarrollador.
       AUTH_SECRET: E2E_AUTH_SECRET,
+      AUTH_PRIVATE_KEY: process.env.E2E_AUTH_PRIVATE_KEY,
+      AUTH_KEY_ID: "e2e-1",
+      AUTH_ISSUER: `http://localhost:${PORT}`,
       // El simulador del panel (SPEC 08) para mover el seguimiento de los pedidos.
       DEMO_PANEL: "1",
       DATA_DIR,

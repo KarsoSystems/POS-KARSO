@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { registroSchema } from "@/lib/validation/auth";
 import { hashPassword } from "@/server/auth/password";
-import { setSession } from "@/server/auth/session";
+import { iniciarSesion } from "@/server/auth/sesiones";
 import { demoCodigo, issueWhatsappCode } from "@/server/auth/whatsapp-verification";
 import { toPublicUser } from "@/server/domain/user";
 import { apiError, parseBody } from "@/server/http/responses";
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   }
 
   const codigo = await issueWhatsappCode(user);
-  await setSession({ sub: user.id, idCliente: user.idCliente, estado: user.estado });
+  await iniciarSesion(user, request.headers.get("user-agent"));
 
   return NextResponse.json({ user: toPublicUser(user), ...demoCodigo(codigo) }, { status: 201 });
 }

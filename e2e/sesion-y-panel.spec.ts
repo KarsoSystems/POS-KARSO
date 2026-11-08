@@ -34,15 +34,15 @@ test.describe("Middleware", () => {
 });
 
 test.describe("Sesión", () => {
-  test("la cookie session es HttpOnly y no se lee desde document.cookie", async ({ page, context }) => {
+  test("la cookie acceso es HttpOnly y no se lee desde document.cookie (SPEC 11)", async ({ page, context }) => {
     await crearCuentaActiva(page.request);
     await page.goto("/panel");
-    const session = (await context.cookies()).find((c) => c.name === "session");
-    expect(session?.httpOnly).toBe(true);
-    expect(await page.evaluate(() => document.cookie)).not.toContain("session=");
+    const acceso = (await context.cookies()).find((c) => c.name === "acceso");
+    expect(acceso?.httpOnly).toBe(true);
+    expect(await page.evaluate(() => document.cookie)).not.toContain("acceso=");
   });
 
-  test("cerrar sesión borra la cookie, va a /login y atrás no muestra el panel", async ({ page, context }) => {
+  test("cerrar sesión borra las cookies, va a /login y atrás no muestra el panel", async ({ page, context }) => {
     const datos = datosRegistro();
     await crearCuentaActiva(page.request, datos);
     await context.clearCookies();
@@ -55,7 +55,7 @@ test.describe("Sesión", () => {
 
     await page.getByRole("button", { name: "Cerrar sesión" }).click();
     await expect(page).toHaveURL(/\/login$/);
-    expect((await context.cookies()).find((c) => c.name === "session")).toBeUndefined();
+    expect((await context.cookies()).find((c) => c.name === "acceso" || c.name === "renovacion")).toBeUndefined();
 
     await page.goBack();
     await expect(page.getByText("Hola, Ana")).toHaveCount(0);

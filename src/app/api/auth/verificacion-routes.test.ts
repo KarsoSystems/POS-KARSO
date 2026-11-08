@@ -13,7 +13,7 @@ vi.mock("next/headers", () => import("@/test/next-headers-mock"));
 import { POST as registro } from "./registro/route";
 import { POST as reenviar } from "./reenviar-codigo/route";
 import { POST as verificar } from "./verificar-whatsapp/route";
-import { getSession } from "@/server/auth/session";
+import { accesoActual } from "@/test/sesion";
 import { jar } from "@/test/next-headers-mock";
 
 const post = (body?: unknown) =>
@@ -72,7 +72,7 @@ describe("POST /api/auth/verificar-whatsapp", () => {
     expect(res.status).toBe(200);
     const { user } = await res.json();
     expect(user).toMatchObject({ estado: "activo", whatsappVerificado: true });
-    expect((await getSession())?.estado).toBe("activo");
+    expect((await accesoActual())?.estado).toBe("activo");
     expect((await readJson("users.json")).users[0].estado).toBe("activo");
     expect((await readJson("verifications.json")).items).toEqual([]);
   });

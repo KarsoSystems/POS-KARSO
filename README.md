@@ -23,8 +23,11 @@ Requisitos: Node 20+ y pnpm (`corepack enable pnpm`).
 ```bash
 pnpm install
 cp .env.example .env.local
+pnpm -s generar-llaves >> .env.local   # la llave RS256 de la sesión (SPEC 11)
 pnpm dev
 ```
+
+Sin `AUTH_SECRET`, `AUTH_PRIVATE_KEY` o `AUTH_KEY_ID` válidas el servidor no arranca y dice qué variable falta (ver [Sesión](#sesión-tokens-de-acceso-y-renovación)).
 
 Abre <http://localhost:3000>. Te redirige a `/login`.
 
@@ -44,7 +47,7 @@ Abre <http://localhost:3000>. Te redirige a `/login`.
 6. **Hacer pedido** congela precios, descuentos e IVA, asigna un folio (`KAR-2026-000001`, …), deja el pedido en **Pago pendiente** y te lleva a la **página de pago simulada**: elige **Aprobar**, **Rechazar** o **Dejarlo pendiente** (no se cobra nada). Aprobado, el pedido pasa a **Enviado**; si no, desde el detalle puedes volver a **Pagar** hasta la hora límite (ver [Pago](#pago-mercado-pago-emulado)).
 7. **Sigue el pedido.** Arranca con `DEMO_PANEL=1 pnpm dev` y abre `/demo/panel` (el simulador del panel de KARSO): **Validar**, mueve cada línea a **En proceso** y **Listo**, y **Entregar**. En el detalle del pedido verás el estatus, "Disponible para recoger a partir del …", el historial y el QR (ver [Seguimiento](#seguimiento-estatus-por-línea-recoger-y-qr)).
 8. **Rechaza y corrige.** En `/demo/panel`, **Rechazar** un pedido enviado con un motivo por línea. En el detalle, el cliente ve los motivos y "Corrige antes del …", sube el archivo corregido de cada línea y pulsa **Enviar corrección** (ver [Rechazo y corrección](#rechazo-y-corrección-de-archivos)).
-9. **Mi perfil.** En `/panel/perfil` marca "Soy socio" con tu negocio y dirección, guarda tus datos fiscales (se precargan al pedir factura), cambia tu contraseña o tu teléfono (el número nuevo se confirma con un código, como en el registro). Ver [Perfil del cliente](#perfil-del-cliente).
+9. **Mi perfil.** En `/panel/perfil` marca "Soy socio" con tu negocio y dirección, guarda tus datos fiscales (se precargan al pedir factura), cambia tu contraseña (con la actual; cierra tus otras sesiones) o tu teléfono (el número nuevo se confirma con un código, como en el registro), y cierra la sesión en los demás dispositivos. Ver [Perfil del cliente](#perfil-del-cliente).
 
 **"Continuar con Google"** es una simulación: un modal pide nombre y correo, sin OAuth. Si el correo ya tiene cuenta, entra a esa misma cuenta. Si no, crea una y pide completar apellidos y WhatsApp.
 
@@ -62,7 +65,7 @@ Abre <http://localhost:3000>. Te redirige a `/login`.
 | `/panel/pedidos/nuevo/item/[itemId]` | Editor de un ítem existente |
 | `/panel/pedidos/[id]` | Detalle de un pedido confirmado: estatus, líneas, entrega, factura y totales; en "Pago pendiente", la hora límite y "Pagar"; ya pagado, "Pagado el … · Ref. …"; rechazado, los motivos, "Subir archivo corregido" y "Enviar corrección" |
 | `/panel/pedidos/[id]/pago` | Página de pago simulada (emula Mercado Pago Checkout Pro): folio, total, hora límite y "Aprobar", "Rechazar" o "Dejarlo pendiente" |
-| `/panel/perfil` | Mi perfil: datos personales (solo lectura), teléfono, dirección y negocio, datos fiscales y contraseña, cada tarjeta por separado |
+| `/panel/perfil` | Mi perfil: datos personales (solo lectura), teléfono, dirección y negocio, datos fiscales, contraseña y sesiones, cada tarjeta por separado |
 | `/panel/seguimiento/[folio]` | Destino del QR: lleva al detalle del pedido si es del cliente; si no, "Pedido no encontrado" |
 | `/demo/panel` | Simulador del panel (solo con `DEMO_PANEL=1`; si no, 404): validar, rechazar, mover líneas y entregar |
 
@@ -103,12 +106,25 @@ Abre <http://localhost:3000>. Te redirige a `/login`.
 | --- | --- |
 | `PUT /api/perfil/direccion` | `{ tipo, nombreNegocio, direccion }`: socio exige negocio y dirección completa; ocasional, dirección opcional (`null`) y negocio `null`. 422 por campo (`nombreNegocio`, `direccion.calle`, …) |
 | `PUT` / `DELETE /api/perfil/datos-fiscales` | Guardar `{ datosFiscales }` (validación del SAT de la SPEC 06; 422 por campo) o borrarlos. Los pedidos hechos conservan su copia |
-| `PUT /api/perfil/contrasena` | `{ password, confirmacion }` (reglas del registro; sin pedir la actual). Una cuenta de Google sin contraseña la crea y suma `"password"` a `providers` |
+| `PUT /api/perfil/contrasena` | `{ contrasenaActual, password, confirmacion }` (reglas del registro). Si la cuenta ya tiene contraseña, `contrasenaActual` es obligatoria: 422 en su campo si falta o es incorrecta (`CONTRASENA_INCORRECTA`). Una cuenta de Google sin contraseña la crea sin ella y suma `"password"` a `providers`. Cierra las demás sesiones del usuario → `{ user, sesionesCerradas }` |
+| `DELETE /api/perfil/sesiones` | "Cerrar sesión en los demás dispositivos": revoca las demás sesiones (la actual sigue) → `{ cerradas }` |
 | `GET /api/perfil/telefono` | El cambio de teléfono en curso: `{ whatsappNuevo }` o `null` |
 | `POST /api/perfil/telefono` | `{ whatsapp }`: envía un código al número nuevo → `{ whatsappNuevo, reenviarEn, demoCodigo? }`. 422 si es inválido o es el actual; 429 antes de 60 s |
 | `POST /api/perfil/telefono/verificar` | `{ codigo }`: con el correcto, el número nuevo pasa a ser el teléfono. 422 `CODIGO_INCORRECTO` con intentos; 410 `CODIGO_EXPIRADO`, `CODIGO_AGOTADO` o `SIN_CODIGO` |
 | `POST /api/perfil/telefono/reenviar` | Otro código al número nuevo; 429 antes de 60 s; 410 sin cambio en curso |
 | `DELETE /api/perfil/telefono` | Cancela el cambio en curso |
+
+**API de la sesión** (SPEC 11; las rutas con sesión responden 401 `TOKEN_EXPIRADO` si venció el token de acceso, y `apiFetch` renueva y repite solo; 401 `SESION_REVOCADA` si la sesión se cerró, y borra las cookies; 401 `NO_AUTENTICADO` sin sesión):
+
+| Método y ruta | Uso |
+| --- | --- |
+| `POST /api/auth/login`, `/registro`, `/google-mock` | Inician una sesión: la crean en `sesiones.json` y ponen las cookies `acceso` y `renovacion` |
+| `POST /api/auth/completar-perfil`, `/verificar-whatsapp` | Cambian el estado de la cuenta y reemiten el token de acceso de la **misma** sesión |
+| `GET /api/auth/me` | `{ user }` de la sesión |
+| `GET /api/auth/renovar?siguiente=` | La usa el middleware con el acceso vencido: renueva y redirige a `siguiente` (solo `/panel/…` o la pantalla del estado); si no puede, borra las cookies y va a `/login?siguiente=` |
+| `POST /api/auth/renovar` | La usa `apiFetch`: renueva → `{ user }`; 401 `NO_AUTENTICADO`, `SESION_REVOCADA` (también por reúso) o `SESION_VENCIDA` |
+| `POST /api/auth/logout` | Revoca la sesión actual (`logout`) y borra las cookies |
+| `GET /.well-known/jwks.json` | Las llaves públicas (sin sesión, caché de 5 min) |
 
 **API del simulador del panel** (solo con `DEMO_PANEL=1`, si no 404; sin sesión: hace lo que harán los endpoints del panel en el backend):
 
@@ -126,7 +142,12 @@ Abre <http://localhost:3000>. Te redirige a `/login`.
 
 | Variable | Obligatoria | Para qué |
 | --- | --- | --- |
-| `AUTH_SECRET` | Sí | Firma el JWT de la cookie de sesión. Mínimo 32 caracteres; si falta o es más corta, **el servidor no arranca**. Genera una con `openssl rand -base64 48`. |
+| `AUTH_SECRET` | Sí | Firma las URLs de subida de archivos (SPEC 05); desde la SPEC 11 la sesión no lo usa. Mínimo 32 caracteres; si falta o es más corta, **el servidor no arranca**. Genera una con `openssl rand -base64 48`. |
+| `AUTH_PRIVATE_KEY` | Sí | Llave privada RSA (PEM PKCS#8, en una línea con `\n`) que firma los tokens de la sesión con RS256. La genera `pnpm generar-llaves`. Si falta o no es RSA, **el servidor no arranca**. Nunca va a git. |
+| `AUTH_KEY_ID` | Sí | El `kid` de esa llave: va en el encabezado de cada token y en el JWKS. |
+| `AUTH_PUBLIC_KEY_ANTERIOR`, `AUTH_KEY_ID_ANTERIOR` | No | Rotación: la llave pública anterior (PEM SPKI) y su `kid`, distinto del actual. Sus tokens siguen valiendo hasta vencer y el JWKS la publica. |
+| `AUTH_ISSUER` | No | El `iss` de los tokens: el origen de la tienda. Por defecto `http://localhost:3000`. |
+| `AUTH_ACCESO_SEGUNDOS` | No | Acorta el token de acceso (15 min por defecto) para probar la renovación a mano. **Nunca en producción.** |
 | `NEXT_PUBLIC_API_BASE_URL` | No | URL base del backend. Vacía = mismo origen (los route handlers de Next del demo). En preproducción apunta al backend real. |
 | `DATA_DIR` | No | Carpeta de los datos del demo. Por defecto `./data`. Los tests e2e usan una carpeta temporal. |
 | `UPLOADS_DIR` | No | Carpeta de los archivos que suben los clientes. Por defecto `./uploads`. |
@@ -173,6 +194,7 @@ Los datos viven en `data/` y los archivos subidos en `uploads/`. Git ignora las 
 | --- | --- |
 | `data/users.json` | Usuarios. La contraseña se guarda hasheada con bcrypt, nunca en texto plano. Versión 3: la 2 sumó `datosFiscales` y `usosPromociones`, la 3 suma `tipo` (`ocasional` / `socio`), `direccion` y `nombreNegocio` (KARSO 6.1). Un archivo de la versión 1 o 2 **se migra** (no se pierden usuarios), con un aviso en la consola. |
 | `data/counters.json` | Consecutivo del `idCliente`. |
+| `data/sesiones.json` | Sesiones (SPEC 11): una por inicio de sesión, con el `jti` vigente y el anterior del token de renovación, el navegador, las fechas y la revocación (`revocadaEn`, `motivoRevocacion`). Versión 1. Al escribir se quitan las vencidas o revocadas hace más de 7 días. |
 | `data/verifications.json` | Códigos de WhatsApp vigentes. Versión 2: cada código guarda el número al que se envió (el del registro o el nuevo del perfil); uno de la versión 1 se descarta (los códigos duran 10 min). |
 | `data/orders.json` | Pedidos (incluido un borrador por cliente) y `contadores`, el consecutivo de los folios por año (`"pedidos-2026": 7`, como KARSO 6.10). Versión 7 (líneas de KARSO con `archivos: { frente, reverso }`, sucursal, factura, promociones, estatus, historial y pagos; desde la SPEC 08, estatus y fecha por línea, `fechaInicioConteo`, `fechaEntregaEstimada` y `qr`; desde la SPEC 09, `rechazos` y `correccionEnviadaEn`): un archivo de una versión anterior se reemplaza por uno vacío al primer uso, con un aviso en la consola. |
 | `data/archivos.json` | Datos de los archivos (dueño, nombre, formato, peso, llave, estado `pendiente`/`subido`, píxeles, color y si tiene miniatura). Versión 2: uno de la versión 1 se reemplaza por uno vacío, con aviso. |
@@ -181,7 +203,7 @@ Los datos viven en `data/` y los archivos subidos en `uploads/`. Git ignora las 
 
 Solo el dueño ve o descarga sus archivos, por `GET /api/archivos/:id`; `uploads/` no se sirve como estática.
 
-**Para reiniciar todo**, detén el servidor y borra `data/` y `uploads/`. Si el navegador conserva una cookie de sesión de un usuario que ya no existe, la app la limpia y te manda a `/login`.
+**Para reiniciar todo**, detén el servidor y borra `data/` y `uploads/`. Si el navegador conserva las cookies de una sesión que ya no existe, la app las limpia y te manda a `/login`. **Para cerrar todas las sesiones** basta borrar `data/sesiones.json`.
 
 **Para reiniciar solo los pedidos**, detén el servidor y borra `data/orders.json`, `data/archivos.json` y `uploads/`. Los folios vuelven a empezar en `KAR-<año>-000001`.
 
@@ -321,8 +343,35 @@ Reglas de `KARSO-PROMPT-v1.md` 5.1 y 6.1, implementadas en el [SPEC 10](specs/10
 - **Tipo de cliente:** todos se registran como **ocasional**. Con "Soy socio (tengo un negocio)" el nombre del negocio y la dirección pasan a ser obligatorios. Por ahora ser socio no da beneficios: solo se guarda el tipo (KARSO lo deja pendiente; hay que hablarlo con el socio). Volver a ocasional borra el nombre del negocio y conserva la dirección, que para un ocasional es opcional.
 - **Dirección:** la forma de KARSO 6.1, la misma de las sucursales: calle con número, colonia, ciudad, estado y código postal de 5 dígitos.
 - **Datos fiscales:** el formulario de la [SPEC 06](#checkout-sucursal-factura-y-promociones). Se precargan al pedir factura y se pueden **borrar**; los pedidos hechos conservan su copia.
-- **Contraseña:** la nueva y su confirmación, con las reglas del registro. **No se pide la actual** (decisión del usuario: basta la sesión activa; conviene revisarlo con la SPEC 11, que trae la revocación de sesiones). Una cuenta que solo entra con Google la **crea** y desde entonces también entra con correo y contraseña.
+- **Contraseña:** la nueva y su confirmación, con las reglas del registro. Desde la SPEC 11 **se pide la actual** si la cuenta ya tiene una, y al guardar se **cierran las demás sesiones** ("Cerramos tus otras sesiones"); la actual sigue. Una cuenta que solo entra con Google la **crea** sin la actual y desde entonces también entra con correo y contraseña.
+- **Sesiones:** "Cerrar sesión en los demás dispositivos", con confirmación, cierra las sesiones de otros navegadores y dice cuántas cerró. No hay una lista de sesiones para cerrar una por una.
 - **Teléfono (WhatsApp):** el número nuevo **se verifica con un código**, como en el registro (aviso de demo y `[DEMO WHATSAPP] Código para <número nuevo>` en la consola). Hasta confirmarlo, el de la cuenta sigue siendo el anterior: el número nuevo vive en `verifications.json`. Se puede reenviar (cada 60 s) o cancelar, y al recargar la página el cambio se retoma. Un código agotado cierra el cambio: hay que pedirlo otra vez. En los datos el campo sigue llamándose `whatsapp` (KARSO lo llama `telefono`).
+
+## Sesión: tokens de acceso y renovación
+
+Reglas de `KARSO-PROMPT-v1.md` 2.1 a, implementadas en el [SPEC 11](specs/11-sesion-con-tokens-y-jwks.md). Cada inicio de sesión (correo, Google o registro) crea una sesión en `data/sesiones.json` y pone dos cookies `httpOnly` (y `secure` en producción), que nunca se leen desde `document.cookie`:
+
+| Cookie | Token | Dura | Cookie |
+| --- | --- | --- | --- |
+| `acceso` | JWT RS256 con `kid`; `iss`, `aud: "tienda"`, `sub`, `sid`, `idCliente`, `estado`, `iat`, `exp` | 15 min | `sameSite: lax`, `path /`; la cookie dura 7 días para que el middleware distinga "vencido" de "sin sesión" |
+| `renovacion` | JWT RS256 con `kid`; `aud: "tienda-renovacion"`, `sub`, `sid`, `jti` | 7 días | `sameSite: strict`, **`path /api/auth`**: solo llega a renovar y cerrar sesión |
+
+**Llaves.** `pnpm -s generar-llaves` imprime `AUTH_PRIVATE_KEY` y `AUTH_KEY_ID` para `.env.local`; en producción van al gestor de secretos. `GET /.well-known/jwks.json` publica la parte pública (`kty`, `n`, `e`, `kid`, `alg: "RS256"`, `use: "sig"`, armada con una lista blanca: nunca la privada), así que el backend u otro servicio verifica los tokens sin compartir secretos. **Para rotar:** genera una llave nueva, pasa la pública de la actual a `AUTH_PUBLIC_KEY_ANTERIOR` (con su `kid` en `AUTH_KEY_ID_ANTERIOR`) y pon la nueva en `AUTH_PRIVATE_KEY` / `AUTH_KEY_ID`. Los tokens nuevos se firman con la nueva; los de la anterior siguen valiendo hasta vencer. Cuando venzan (7 días), quita la anterior. La pública de una privada sale con `openssl pkey -in privada.pem -pubout`.
+
+**Renovación.** El middleware (edge) verifica el token de acceso con la llave pública; si venció con firma válida, manda a `GET /api/auth/renovar?siguiente=<la página>`, que renueva y regresa. En el navegador, `apiFetch` ante un 401 `TOKEN_EXPIRADO` hace **una** renovación (`POST /api/auth/renovar`), juntando las simultáneas, y repite la petición. Cada renovación **rota** el `jti` y extiende la sesión 7 días. Si renovar falla se borran las dos cookies y se va a `/login`, así que no hay bucle.
+
+**Revocación.** Las rutas de la API revisan el `sid` en `sesiones.json` en cada petición: revocar corta **de inmediato**, aunque el token de acceso no haya vencido. (Las páginas del panel pueden verse hasta 15 min, pero sin datos: los piden a la API, que responde `SESION_REVOCADA` y manda a `/login`.)
+
+| Motivo | Cuándo |
+| --- | --- |
+| `logout` | "Cerrar sesión": la sesión actual |
+| `cambio_contrasena` | Cambiar la contraseña: las demás sesiones del usuario |
+| `otras_sesiones` | "Cerrar sesión en los demás dispositivos" |
+| `reuso` | Se presentó un token de renovación ya rotado (copiado o robado): la sesión entera, también para su dueño. Durante 10 s después de rotar se acepta el anterior, por dos pestañas que renuevan a la vez |
+
+**Despliegue.** La cookie `session` (HS256) de antes de la SPEC 11 ya no vale: el middleware la borra y manda a `/login`, conservando `siguiente`. Las sesiones abiertas no se migran.
+
+**Pruebas.** Vitest genera su llave al arrancar (`src/test/llaves.ts`) y Playwright otra por corrida (`playwright.config.ts`): ninguna se guarda en git. Los e2e de `e2e/sesion-tokens.spec.ts` prueban un acceso vencido firmando uno ya vencido de la misma sesión con la llave de e2e; para probarlo a mano, `AUTH_ACCESO_SEGUNDOS=20 pnpm dev`.
 
 ## Archivos de la línea
 
@@ -375,6 +424,7 @@ node e2e/fixtures/generar-imagenes.mjs
 | Comando | Qué hace |
 | --- | --- |
 | `pnpm dev` | Servidor de desarrollo en el puerto 3000. |
+| `pnpm -s generar-llaves` | Imprime una llave RS256 nueva para la sesión (`AUTH_PRIVATE_KEY` y `AUTH_KEY_ID`). |
 | `pnpm build` / `pnpm start` | Build y servidor de producción. |
 | `pnpm lint` | ESLint. |
 | `pnpm test` | Tests de unidad, de route handlers y de hooks (Vitest). |
@@ -384,7 +434,7 @@ node e2e/fixtures/generar-imagenes.mjs
 
 ```
 src/
-├── app/                 # páginas (/panel/pedidos/*, /panel/seguimiento, /demo/panel) y route handlers (/api/auth, /api/archivos, /api/r2-local, /api/pedidos, /api/tienda, /api/demo-panel)
+├── app/                 # páginas (/panel/pedidos/*, /panel/seguimiento, /demo/panel) y route handlers (/api/auth, /.well-known/jwks.json, /api/perfil, /api/archivos, /api/r2-local, /api/pedidos, /api/tienda, /api/demo-panel)
 ├── components/          # UI con atomic design (ver abajo)
 │   ├── atoms/           #   piezas indivisibles: shadcn/ui y átomos propios
 │   ├── molecules/       #   combinan átomos con una sola responsabilidad
@@ -451,8 +501,9 @@ Los colores viven en tokens de `src/app/globals.css`: `:root` es el claro y `.da
 | [08](specs/08-seguimiento-estatus-por-linea-recoger-y-qr.md) | Seguimiento: estatus por línea, "disponible para recoger a partir del…" en días hábiles con corte y festivos, historial, QR y página de seguimiento, volver después del login, simulador del panel | En verificación |
 | [09](specs/09-rechazo-y-correccion-de-archivos.md) | Rechazo de un pedido enviado con motivo por línea, corrección de archivos en 5 días (sin domingos, con festivos), "Enviar corrección" y cancelación al vencer | En verificación |
 | [10](specs/10-perfil-del-cliente.md) | Mi perfil: tipo de cliente (socio con negocio y dirección), dirección, datos fiscales, contraseña y cambio de teléfono verificado; nombre y correo de solo lectura | En verificación |
-| 11 | Sesión con token de acceso (15 min) y de renovación (7 días, rotado y revocable), firma asimétrica y `/.well-known/jwks.json` (KARSO 2.1) | Pendiente |
+| [11](specs/11-sesion-con-tokens-y-jwks.md) | Sesión con token de acceso (15 min) y de renovación (7 días, rotado y revocable), firma RS256 con `kid`, `/.well-known/jwks.json`, revocación y "cerrar sesión en los demás dispositivos" (KARSO 2.1) | En verificación |
+| 12 | Hoja técnica para el backend: lo fundamental de las SPEC 01–11 para construir el backend (NestJS + MongoDB + R2) | Pendiente |
 
-La hoja de ruta 04–11 sale de alinear la tienda con `KARSO-PROMPT-v1.md` (la del SPEC 02 queda reemplazada). La SPEC 06 original (checkout y pago) se dividió en checkout (06) y pago (07), la 08 en seguimiento (08) y rechazo y corrección (09), y la de perfil y sesión en perfil (10) y sesión (11). El panel de administración es otro proyecto: aquí solo se simulan sus datos.
+La hoja de ruta 04–12 sale de alinear la tienda con `KARSO-PROMPT-v1.md` (la del SPEC 02 queda reemplazada). La SPEC 06 original (checkout y pago) se dividió en checkout (06) y pago (07), la 08 en seguimiento (08) y rechazo y corrección (09), y la de perfil y sesión en perfil (10) y sesión (11). La 12 reúne lo necesario para empezar el backend. El panel de administración es otro proyecto: aquí solo se simulan sus datos.
 
 Fuera del demo por ahora: recuperar contraseña, verificación de correo, envío real de códigos, OAuth real de Google, backend real (NestJS + MongoDB + Cloudflare R2), miniaturas y lectura de PDF/AI/EPS/SVG, limpieza de archivos huérfanos, notificaciones reales (correo y WhatsApp) y timbrado de factura (CFDI). La app es 100% web: no hay versión de escritorio.

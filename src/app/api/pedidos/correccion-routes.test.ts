@@ -21,7 +21,7 @@ import { CONFIGURACION_PATH, PRODUCTOS_PATH } from "@/server/mock-panel";
 import { archivoRepository, userRepository } from "@/server/repositories";
 import { subirArchivoPrueba } from "@/test/archivos";
 import { jar } from "@/test/next-headers-mock";
-import { iniciarSesionActiva } from "@/test/sesion";
+import { iniciarSesionActiva, renovarSiHaySesion } from "@/test/sesion";
 import { POST as enviarRuta } from "./[id]/correccion/route";
 import { PUT as corregirRuta } from "./[id]/lineas/[lineaId]/archivos/route";
 import { POST as pagoRuta } from "./[id]/pago-simulado/route";
@@ -48,10 +48,11 @@ const pedidoDe = async (res: Response) => (await res.json()).pedido;
 /** Archivos en uploads/ (para revisar que el reemplazado y el temporal se borraron). */
 const enUploads = async (carpeta: string) => readdir(path.join(env.uploadsDir!, carpeta)).catch(() => [] as string[]);
 
-/** Mueve el reloj (solo Date) a `fecha`. */
-const reloj = (fecha: number | string) => {
+/** Mueve el reloj (solo Date) a `fecha` y, si hay sesión, renueva el acceso como lo haría apiFetch. */
+const reloj = async (fecha: number | string) => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(fecha));
+  await renovarSiHaySesion();
 };
 
 /**
@@ -90,7 +91,7 @@ async function pedidoRechazado({ codigo, lineas = "ambas" }: { codigo?: string; 
   const confirmado = await pedidoDe(await confirmarRuta());
   await pagoRuta(json("POST", { resultado: "aprobado" }), ctx(confirmado.id));
 
-  reloj("2026-11-02T15:40:00-06:00");
+  await reloj("2026-11-02T15:40:00-06:00");
   const [tarjeta, lona] = confirmado.productos.map((l: { lineaId: string }) => l.lineaId);
   const marcadas = [{ lineaId: tarjeta, motivo: "resolucion_insuficiente", comentario: "Se requieren 300 dpi" }];
   if (lineas === "ambas") marcadas.push({ lineaId: lona, motivo: "color_rgb", comentario: "Conviértelo a CMYK" });
@@ -128,7 +129,7 @@ describe("PUT /api/pedidos/:id/lineas/:lineaId/archivos", () => {
     expect(await enUploads(`pedidos/${folio}`)).toContain(`${tarjeta}_frente.pdf`);
 
     const nuevo = await subirArchivoPrueba("tarjeta-300dpi.pdf", "%PDF corregido");
-    reloj("2026-11-03T10:00:00-06:00");
+    await reloj("2026-11-03T10:00:00-06:00");
     const res = await corregir(pedido.id, tarjeta, { frente: nuevo.id });
     expect(res.status).toBe(200);
     const corregido = await pedidoDe(res);
@@ -225,7 +226,7 @@ describe("POST /api/pedidos/:id/correccion", () => {
     expect((await incompleta.json()).error.code).toBe("CORRECCION_INCOMPLETA");
 
     await corregir(pedido.id, lona, { frente: (await subirArchivoPrueba("l.pdf", "%PDF")).id });
-    reloj("2026-11-04T10:00:00-06:00");
+    await reloj("2026-11-04T10:00:00-06:00");
     const res = await enviar(pedido.id);
     expect(res.status).toBe(200);
     const enviado = await pedidoDe(res);
@@ -239,7 +240,7 @@ describe("POST /api/pedidos/:id/correccion", () => {
     expect((await enviar(pedido.id)).status).toBe(409);
 
     // Mostrador vuelve a validar el jueves 5: la tarjeta (5 días) cuenta desde el miércoles 4 → martes 10.
-    reloj("2026-11-05T11:00:00-06:00");
+    await reloj("2026-11-05T11:00:00-06:00");
     expect(await pedidoDe(await validar(pedido.id))).toMatchObject({ estatus: "recibido", fechaEntregaEstimada: "2026-11-10" });
   });
 
@@ -248,7 +249,7 @@ describe("POST /api/pedidos/:id/correccion", () => {
     const { pedido, tarjeta, lona } = await pedidoRechazado();
     for (const lineaId of [tarjeta, lona]) await corregir(pedido.id, lineaId, { frente: (await subirArchivoPrueba("x.pdf", "%PDF")).id });
     await enviar(pedido.id);
-    reloj("2026-11-05T10:00:00-06:00");
+    await reloj("2026-11-05T10:00:00-06:00");
     await rechazar(pedido.id, [{ lineaId: lona, motivo: "medida_incorrecta", comentario: "Es de 2 x 1 m" }]);
 
     expect((await enviar(pedido.id)).status).toBe(422);
@@ -264,7 +265,7 @@ describe("vencimiento de la corrección (al leer)", () => {
   it("a las 23:59 del sábado 7 todavía se puede corregir", async () => {
     await iniciarSesionActiva();
     const { pedido, tarjeta } = await pedidoRechazado();
-    reloj("2026-11-07T23:59:00-06:00");
+    await reloj("2026-11-07T23:59:00-06:00");
     expect((await corregir(pedido.id, tarjeta, { frente: (await subirArchivoPrueba("t.pdf", "%PDF")).id })).status).toBe(200);
   });
 
@@ -275,7 +276,7 @@ describe("vencimiento de la corrección (al leer)", () => {
     const limite = pedido.rechazos[0].fechaLimiteCorreccion;
     expect(limite).toBe("2026-11-08T05:59:59.999Z");
 
-    reloj("2026-11-08T00:00:00-06:00");
+    await reloj("2026-11-08T00:00:00-06:00");
     const [enLista] = await lista();
     const motivo = "No corrigió el archivo en el plazo";
     expect(enLista).toMatchObject({ estatus: "cancelado", cancelacion: { fecha: limite, por: "sistema", motivo, reembolso: null } });
@@ -293,7 +294,7 @@ describe("vencimiento de la corrección (al leer)", () => {
   it("corregir sin que nadie lo haya leído también lo cancela y responde 409 CORRECCION_VENCIDA", async () => {
     await iniciarSesionActiva();
     const { pedido, tarjeta } = await pedidoRechazado();
-    reloj("2026-11-09T09:00:00-06:00");
+    await reloj("2026-11-09T09:00:00-06:00");
     const res = await corregir(pedido.id, tarjeta, { frente: (await subirArchivoPrueba("t.pdf", "%PDF")).id });
     expect(res.status).toBe(409);
     expect((await detalle(pedido.id)).cancelacion.motivo).toBe("No corrigió el archivo en el plazo");

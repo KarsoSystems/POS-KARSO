@@ -220,7 +220,7 @@ test.describe("Borrador", () => {
 
     await page.getByRole("button", { name: "Cerrar sesión" }).click();
     await expect(page).toHaveURL(/\/login$/);
-    expect((await context.cookies()).find((c) => c.name === "session")).toBeUndefined();
+    expect((await context.cookies()).find((c) => c.name === "acceso")).toBeUndefined();
     // Se espera a que el formulario hidrate: si no, el envío nativo no pasa por la API.
     await page.waitForLoadState("networkidle");
     await page.getByLabel("Correo").fill(datos.correo);
