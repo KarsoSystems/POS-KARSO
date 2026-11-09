@@ -6,6 +6,8 @@ El contrato de todo el sistema (tienda, panel de administración y backend) es [
 
 Este repositorio es el **demo**: la app Next.js guarda todo en archivos JSON locales. En preproducción y producción esta app será solo el front y hablará con un backend propio (MongoDB + storage tipo S3) por HTTP. El cambio es de URL base, no de código del front.
 
+**Para construir el backend:** la [hoja técnica](docs/backend/hoja-tecnica.md) (SPEC 12) es el documento pivote entre este front y el backend (NestJS + MongoDB Atlas + R2 en Railway). Por cada módulo trae los contratos, las reglas, la lógica del demo para portar con sus tests, lo emulado y lo pendiente con el socio. No hay que leerla entera: el mapa dice qué sección leer. `src/hoja-tecnica.test.ts` falla si una ruta del demo no está documentada.
+
 El trabajo se define con specs en [`specs/`](specs/). Lo implementado hoy:
 
 - [SPEC 01](specs/01-base-y-autenticacion-demo.md): registro, login (correo o Google simulado), verificación de WhatsApp simulada y el esqueleto del panel.
@@ -453,6 +455,7 @@ src/
 config/mock-panel/       # productos, banners, sucursales, promociones y configuración simulados del panel de KARSO
 public/mock/             # imágenes de ejemplo de productos y banners
 KARSO-PROMPT-v1.md       # contrato del sistema acordado con el socio
+docs/backend/            # hoja técnica para construir el backend (SPEC 12)
 docs/identidad/          # maqueta del socio, fuente de la identidad gráfica
 e2e/                     # tests de Playwright (fixtures en e2e/fixtures)
 specs/                   # specs del proyecto
@@ -502,7 +505,7 @@ Los colores viven en tokens de `src/app/globals.css`: `:root` es el claro y `.da
 | [09](specs/09-rechazo-y-correccion-de-archivos.md) | Rechazo de un pedido enviado con motivo por línea, corrección de archivos en 5 días (sin domingos, con festivos), "Enviar corrección" y cancelación al vencer | En verificación |
 | [10](specs/10-perfil-del-cliente.md) | Mi perfil: tipo de cliente (socio con negocio y dirección), dirección, datos fiscales, contraseña y cambio de teléfono verificado; nombre y correo de solo lectura | En verificación |
 | [11](specs/11-sesion-con-tokens-y-jwks.md) | Sesión con token de acceso (15 min) y de renovación (7 días, rotado y revocable), firma RS256 con `kid`, `/.well-known/jwks.json`, revocación y "cerrar sesión en los demás dispositivos" (KARSO 2.1) | En verificación |
-| 12 | Hoja técnica para el backend: lo fundamental de las SPEC 01–11 para construir el backend (NestJS + MongoDB + R2) | Pendiente |
+| [12](specs/12-hoja-tecnica-para-el-backend.md) | [Hoja técnica para el backend](docs/backend/hoja-tecnica.md): por módulo de NestJS, contratos, reglas, lógica para portar, lo emulado y los pendientes con el socio, con un test de cobertura de rutas | En verificación |
 
 La hoja de ruta 04–12 sale de alinear la tienda con `KARSO-PROMPT-v1.md` (la del SPEC 02 queda reemplazada). La SPEC 06 original (checkout y pago) se dividió en checkout (06) y pago (07), la 08 en seguimiento (08) y rechazo y corrección (09), y la de perfil y sesión en perfil (10) y sesión (11). La 12 reúne lo necesario para empezar el backend. El panel de administración es otro proyecto: aquí solo se simulan sus datos.
 
