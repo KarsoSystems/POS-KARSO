@@ -1178,38 +1178,49 @@ Lo que se aparta de KARSO o lo que KARSO deja abierto. Cada punto dice su spec d
 **Contrato y nombres**
 
 1. **Prefijo `/tienda`** para todas las rutas del demo, y `path` `/tienda/auth` para la cookie `renovacion`. Lo pide KARSO 2; el front todavía llama a `/api` (SPEC 12).
-2. **El campo `whatsapp`** en lugar de `telefono`, porque es el número verificado por WhatsApp (SPEC 01 y [10](../../specs/10-perfil-del-cliente.md)).
-3. **Nombres de campo distintos de KARSO:** `userId` (`usuarioId`), `nombre` (`nombres`), `createdAt` y `updatedAt` (`creadoEn` y `actualizadoEn`). Hay que decidir si el backend usa los de KARSO y traduce en la API, o los del demo (SPEC 12).
+2. **El campo `whatsapp`** en lugar de `telefono`, porque es el número verificado por WhatsApp (SPEC 01 y [10](../../specs/10-perfil-del-cliente.md)). **Propuesta del backend** (SPEC 02 del backend): en Mongo se guarda como `telefono`, el nombre de KARSO, pero en E.164 (`+52` y 10 dígitos), no con los 10 dígitos del ejemplo de KARSO 6.1; `whatsappVerificado` se guarda como `telefonoVerificado`. La API los traduce a `whatsapp` y `whatsappVerificado`.
+3. **Nombres de campo distintos de KARSO:** `userId` (`usuarioId`), `nombre` (`nombres`), `createdAt` y `updatedAt` (`creadoEn` y `actualizadoEn`). Hay que decidir si el backend usa los de KARSO y traduce en la API, o los del demo (SPEC 12). **Propuesta del backend** (SPEC 01 del backend, `cliente-backend/specs/01-base-y-transversal.md`): en Mongo, los nombres de KARSO (`usuarioId`, `nombres`, `creadoEn`, `actualizadoEn`), y la API traduce a los del demo donde el front los lee. KARSO manda sobre la hoja y el panel del socio lee la misma base.
 4. **Montos:** `Decimal128` o centavos enteros en Mongo; la API sigue en pesos con 2 decimales (KARSO 2; [04](../../specs/04-catalogo-y-cotizacion-karso.md)).
 5. **Zona horaria:** KARSO dice `America/Monterrey` y el mock del panel trae `America/Mexico_City` ([07](../../specs/07-pago-mercado-pago-emulado-y-folio-kar.md)). El resultado es el mismo, pero hay que fijar una. Además, el demo tiene `ZONA_HORARIA_TIENDA` escrita en `src/lib/configuracion/schema.ts` (formato de fechas y año del calendario). El backend siempre debe leer `configuracion.zonaHoraria` (SPEC 12).
+6. **`ERROR_INTERNO`:** un error inesperado del backend responde 500 `{ error: { code: "ERROR_INTERNO", message: "Ocurrió un error, intenta de nuevo" } }`, y una ruta inexistente, 404 `NO_ENCONTRADO`. La tabla de [Forma de los errores](#transversal) no los define. El front ya trata un error sin esa forma como `DESCONOCIDO` (`src/lib/api-client.ts`), así que no le afecta (SPEC 01 del backend).
 
 **Colecciones y campos nuevos**
 
-6. **El borrador en el servidor**, para que sea el mismo en todos los dispositivos. Hoy es un pedido en `borrador`; la alternativa es una colección aparte. No está en las 10 colecciones de KARSO ([04](../../specs/04-catalogo-y-cotizacion-karso.md) y [06](../../specs/06-checkout-sucursal-factura-y-promociones.md)).
-7. **`usosPromociones` en el usuario**, provisional. Se propone `usosActuales` con `$inc` más el conteo en `pedidos` ([06](../../specs/06-checkout-sucursal-factura-y-promociones.md)).
-8. **Colecciones nuevas:**
+7. **El borrador en el servidor**, para que sea el mismo en todos los dispositivos. Hoy es un pedido en `borrador`; la alternativa es una colección aparte. No está en las 10 colecciones de KARSO ([04](../../specs/04-catalogo-y-cotizacion-karso.md) y [06](../../specs/06-checkout-sucursal-factura-y-promociones.md)).
+8. **`usosPromociones` en el usuario**, provisional. Se propone `usosActuales` con `$inc` más el conteo en `pedidos` ([06](../../specs/06-checkout-sucursal-factura-y-promociones.md)).
+9. **Colecciones nuevas:**
    - `sesiones`, la sesión revocable ([11](../../specs/11-sesion-con-tokens-y-jwks.md));
    - `verificaciones`, los códigos de WhatsApp ([01](../../specs/01-base-y-autenticacion-demo.md) y 10);
    - `archivos`, la subida antes de la línea ([05](../../specs/05-archivos-frente-reverso-y-validacion.md));
    - `notificaciones`, el outbox propuesto ([08](../../specs/08-seguimiento-estatus-por-linea-recoger-y-qr.md)).
-9. **Las caras del pedido** guardan `archivoId` y `advertencias` en lugar de `url` ([05](../../specs/05-archivos-frente-reverso-y-validacion.md)).
-10. **Campos nuevos del pedido:** `sucursalEntrega`, `avisos`, `problema`, `confirmadoAt`, `vencimientoPago` y `correccionEnviadaEn` (06–09).
+10. **Las caras del pedido** guardan `archivoId` y `advertencias` en lugar de `url` ([05](../../specs/05-archivos-frente-reverso-y-validacion.md)).
+11. **Campos nuevos del pedido:** `sucursalEntrega`, `avisos`, `problema`, `confirmadoAt`, `vencimientoPago` y `correccionEnviadaEn` (06–09).
 
 **Reglas**
 
-11. **Los archivos solo advierten**, también por formato, peso o ilegible: mostrador decide. El reverso puede ser un calendario o un texto, también cuando es `obligatorio` ([05](../../specs/05-archivos-frente-reverso-y-validacion.md)).
-12. **Solo el admin cancela**, como dice KARSO 5.8, y el sistema por vencimiento. El cliente no cancela ([07](../../specs/07-pago-mercado-pago-emulado-y-folio-kar.md)).
-13. **El rechazo solo desde `enviado`.** KARSO 5.8 permite también rechazar en armado; la tienda lo dejó fuera porque un defecto en producción es del taller, que ya validó ([09](../../specs/09-rechazo-y-correccion-de-archivos.md)).
-14. **Los 5 días para corregir:** no cuentan los domingos, los festivos sí, y el plazo vence a las 23:59 del último día, en la hora de la tienda. KARSO 8 lo dejó abierto: "naturales o hábiles" ([09](../../specs/09-rechazo-y-correccion-de-archivos.md)) Ojo: la fecha para recoger salta los festivos (KARSO 5.9) y el plazo de corrección los cuenta. Son dos reglas distintas a propósito; falta confirmar si en festivos también se entrega.
-15. **Las 3 notificaciones mínimas:** confirmado, rechazado y listo, y nada más. Falta decidir el canal: correo, WhatsApp o los dos ([08](../../specs/08-seguimiento-estatus-por-linea-recoger-y-qr.md) y 09).
-16. **"Socio" sin beneficios:** solo guarda el nombre del negocio y la dirección (KARSO 8; [10](../../specs/10-perfil-del-cliente.md)).
-17. **Huecos en los folios:** si un folio consumido por una confirmación que falló puede quedar sin usar, o si se exige la transacción (SPEC 12).
+12. **Los archivos solo advierten**, también por formato, peso o ilegible: mostrador decide. El reverso puede ser un calendario o un texto, también cuando es `obligatorio` ([05](../../specs/05-archivos-frente-reverso-y-validacion.md)).
+13. **Solo el admin cancela**, como dice KARSO 5.8, y el sistema por vencimiento. El cliente no cancela ([07](../../specs/07-pago-mercado-pago-emulado-y-folio-kar.md)).
+14. **El rechazo solo desde `enviado`.** KARSO 5.8 permite también rechazar en armado; la tienda lo dejó fuera porque un defecto en producción es del taller, que ya validó ([09](../../specs/09-rechazo-y-correccion-de-archivos.md)).
+15. **Los 5 días para corregir:** no cuentan los domingos, los festivos sí, y el plazo vence a las 23:59 del último día, en la hora de la tienda. KARSO 8 lo dejó abierto: "naturales o hábiles" ([09](../../specs/09-rechazo-y-correccion-de-archivos.md)) Ojo: la fecha para recoger salta los festivos (KARSO 5.9) y el plazo de corrección los cuenta. Son dos reglas distintas a propósito; falta confirmar si en festivos también se entrega.
+16. **Las 3 notificaciones mínimas:** confirmado, rechazado y listo, y nada más. Falta decidir el canal: correo, WhatsApp o los dos ([08](../../specs/08-seguimiento-estatus-por-linea-recoger-y-qr.md) y 09).
+17. **"Socio" sin beneficios:** solo guarda el nombre del negocio y la dirección (KARSO 8; [10](../../specs/10-perfil-del-cliente.md)).
+18. **Huecos en los folios:** si un folio consumido por una confirmación que falló puede quedar sin usar, o si se exige la transacción (SPEC 12). Lo mismo con `idCliente`: el backend revisa el correo antes de pedir el número, pero si dos registros con el mismo correo llegan a la vez, el segundo consume un número que queda sin usar (p. ej. `CLI-000007`). Se acepta el hueco en lugar de una transacción (SPEC 02 del backend).
 
 **Integraciones**
 
-18. **Mercado Pago:** las credenciales, la preferencia, el webhook y dónde guardar el id de la preferencia, que KARSO 6.5 no tiene ([07](../../specs/07-pago-mercado-pago-emulado-y-folio-kar.md)).
-19. **La cookie `renovacion` con `sameSite: strict`.** Al entrar a `/panel/…` desde un enlace de otro sitio (WhatsApp, correo) con el acceso vencido, el navegador no la manda en la redirección a renovar, y el cliente tiene que volver a iniciar sesión. Escanear el QR con la cámara sí funciona. Se propone que, si falta la cookie, la página se recargue una vez desde el mismo origen (por ejemplo, con un `meta refresh`), para que la cookie sí viaje ([11](../../specs/11-sesion-con-tokens-y-jwks.md)).
-20. **El cifrado por campo** de KARSO 2.1 b): teléfono, dirección y datos fiscales. Lo hace el backend y el contrato de la API no cambia ([10](../../specs/10-perfil-del-cliente.md)).
+19. **Mercado Pago:** las credenciales, la preferencia, el webhook y dónde guardar el id de la preferencia, que KARSO 6.5 no tiene ([07](../../specs/07-pago-mercado-pago-emulado-y-folio-kar.md)).
+20. **La cookie `renovacion` con `sameSite: strict`.** Al entrar a `/panel/…` desde un enlace de otro sitio (WhatsApp, correo) con el acceso vencido, el navegador no la manda en la redirección a renovar, y el cliente tiene que volver a iniciar sesión. Escanear el QR con la cámara sí funciona. Se propone que, si falta la cookie, la página se recargue una vez desde el mismo origen (por ejemplo, con un `meta refresh`), para que la cookie sí viaje ([11](../../specs/11-sesion-con-tokens-y-jwks.md)).
+21. **El cifrado por campo** de KARSO 2.1 b): teléfono, dirección y datos fiscales. Lo hace el backend y el contrato de la API no cambia ([10](../../specs/10-perfil-del-cliente.md)).
+
+**Decisiones del backend por confirmar** (SPEC 02 del backend)
+
+22. **Modo demo en producción.** Para mostrarle la tienda al cliente, el backend corre con dos variables que **hay que apagar antes de tener clientes reales**:
+    - `AUTH_GOOGLE_DEMO=1`: "Continuar con Google" simulado (`POST /tienda/auth/google-mock`). Se confía en el correo que se escribe, así que **cualquiera puede entrar a la cuenta de otro**. El OAuth real llega cuando el cliente dé sus credenciales de GCP;
+    - `WHATSAPP_DEMO=1`: el código de WhatsApp va al log **y en la respuesta (`demoCodigo`), también en producción**. Se aparta de "Nunca `demoCodigo`" de [Emulado → real](#emulado) hasta que el cliente dé los datos de la WhatsApp Cloud API.
+
+    Al arrancar en producción con alguna de las dos, el log muestra `⚠ MODO DEMO: …`.
+23. **Contraseñas con argon2id** (KARSO 2.1 a lo permite), en lugar del bcrypt del demo. Parámetros mínimos de OWASP: 19 MiB, 2 iteraciones y paralelismo 1. Los datos del demo no pasan al backend, así que no hay hashes que migrar.
+24. **`activo` de KARSO 6.1** se guarda en `true` al crear la cuenta y la tienda no lo lee: el login no lo revisa. Falta definir qué pasa si el panel lo pone en `false` (¿no puede entrar?, ¿se cierran sus sesiones?).
 
 ---
 
